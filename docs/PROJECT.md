@@ -396,7 +396,71 @@ The palette is **fully grayscale** except for `--destructive`. No gradients. No 
 
 The customer app is roughly feature-complete. The biggest gap is the **other side** — staff need to receive orders and manage the menu. Here's a proposed shape:
 
-### 10.1 Suggested split
+### 10.1 Repository structure — keep it in this project
+
+**Recommendation: build admin and kitchen inside this same repo, route-split with lazy loading.** The customer and admin sides will share types, design tokens, UI primitives, and the Supabase client; duplicating any of those across repos costs more in drift and inconsistency than the cleanliness buys.
+
+```tsx
+// src/App.tsx — sketch
+const AdminApp   = lazy(() => import("@/admin/AdminApp"));
+const KitchenApp = lazy(() => import("@/kitchen/KitchenApp"));
+
+<Routes>
+  {/* Customer shell — current AppLayout */}
+  <Route element={<AppLayout />}>
+    <Route path="/"             element={<HomePage />} />
+    <Route path="/menu"         element={<MenuPage />} />
+    <Route path="/cart"         element={<CartPage />} />
+    <Route path="/checkout"     element={<CheckoutPage />} />
+    <Route path="/order-status" element={<OrderStatusPage />} />
+  </Route>
+
+  {/* Admin / Kitchen — own layouts, own auth, own chunks */}
+  <Route path="/admin/*"   element={<Suspense fallback={<SplashFallback />}><AdminApp /></Suspense>} />
+  <Route path="/kitchen/*" element={<Suspense fallback={<SplashFallback />}><KitchenApp /></Suspense>} />
+</Routes>
+```
+
+Folder layout when admin lands:
+
+```
+src/
+├── (everything below stays the customer app)
+├── admin/                # admin-only pages, layout, auth guard
+│   ├── AdminApp.tsx
+│   ├── AdminLayout.tsx
+│   ├── pages/
+│   │   ├── Login.tsx
+│   │   ├── MenuManager.tsx
+│   │   ├── Orders.tsx
+│   │   └── Banners.tsx
+│   └── components/...
+├── kitchen/              # kitchen display
+│   ├── KitchenApp.tsx
+│   └── ...
+└── shared/               # things both customer and admin need
+    └── ... (types, services already in src/types and src/services — likely just expand those)
+```
+
+**Why this and not a separate repo or a monorepo (yet):**
+
+| | Single SPA + lazy routes (recommended) | Monorepo (pnpm/Turborepo) | Separate repos |
+|---|---|---|---|
+| Type sharing | trivial | trivial via `packages/types` | needs published package or codegen |
+| Design system drift | impossible | low risk | high risk |
+| Bundle size for customer | small (lazy) | small (separate apps) | small |
+| Deploy cadence | coupled | independent | independent |
+| Setup overhead | none | medium | high |
+| Best when | small team, single product | growing team or apps diverge | regulatory / org reasons demand it |
+
+**Migrate later if either of these becomes true:**
+- Admin needs server-side rendering (Next.js) while customer stays a pure SPA
+- Customer and admin have to ship on different cadences (e.g., admin gets feature-flagged previews you don't want anywhere near customers)
+- The bundle gets large enough that lazy-loading isn't enough (which would be bizarre for an app this size)
+
+The cleanest intermediate step is a **monorepo** (`apps/customer`, `apps/admin`, `apps/kitchen` + `packages/types`, `packages/ui`). Don't preemptively reach for it.
+
+### 10.2 Suggested route split
 
 ```
 /                         (customer)  ──┐
@@ -416,7 +480,7 @@ The customer app is roughly feature-complete. The biggest gap is the **other sid
 
 Customer routes stay table-id-authenticated (no login). Admin/kitchen routes need real auth — recommend **Supabase Auth** (email + password is enough for a single restaurant; can add magic links later).
 
-### 10.2 Suggested backend
+### 10.3 Suggested backend
 
 **Supabase** is the highest-leverage choice:
 - Postgres with row-level security
@@ -430,7 +494,7 @@ Replacement plan:
 - `services/order-service.ts` → `supabase.from('orders').insert(...)` + a realtime channel for status changes
 - `useOrderStatus` → swap polling for `supabase.channel().on('postgres_changes', ...)`
 
-### 10.3 Suggested schema (Postgres / Supabase)
+### 10.4 Suggested schema (Postgres / Supabase)
 
 ```sql
 -- tables (the physical ones)
@@ -503,14 +567,14 @@ Suggested RLS:
 - `orders`, `order_items`: anyone can `insert` (customer placing an order); only staff can `select`/`update`
 - Customer status read needs a separate path — e.g., a Supabase Edge Function that takes `order_id` and returns the status, or a public `select` policy keyed on `order_id` (long, hard-to-guess id is fine for this app's threat model).
 
-### 10.4 Admin UI sketch
+### 10.5 Admin UI sketch
 
 - **`/admin/menu`** — Reuse `MenuGrid` + `MenuItemCard` in "manage" mode (long-press / right-click → edit drawer). Toggle in-stock with a switch on each card. Drag to reorder. Add a + FAB for new items. Modal for options editor.
 - **`/admin/orders`** — A list view. Each order is a card with: status pill, table chip, items, total, age. Status dropdown to advance manually. Filter by status / table / date.
 - **`/admin/banners`** — Drag-reorder list, image upload to Supabase Storage, title/subtitle inputs, active toggle.
 - **`/kitchen`** — Big-ticket display optimized for landscape. One big card per active order with: table number (huge), all line items, special instructions highlighted, swipe-to-progress (pending → preparing → ready). Auto-scroll horizontally if more than fit. Sound on new order.
 
-### 10.5 Push notifications ("Your order is ready")
+### 10.6 Push notifications ("Your order is ready")
 
 The PWA scaffold already supports this. When status flips to `ready`:
 - Send a Web Push from the backend to the customer's subscribed endpoint
