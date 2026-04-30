@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { ShoppingCart } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 import { useAppStore } from "@/store/useAppStore";
 import { CartItemRow } from "@/components/cart/CartItemRow";
 import { CartFooter } from "@/components/cart/CartFooter";
@@ -32,21 +31,27 @@ export default function CartPage() {
     );
   }
 
+  const itemCount = getCartItemCount();
+
   return (
-    <div className="space-y-2">
-      <h2 className="text-lg font-bold">Your Cart</h2>
-      <div className="divide-y">
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-2xl font-extrabold">Your Cart</h2>
+        <span className="text-sm font-medium text-muted-foreground">
+          {itemCount} {itemCount === 1 ? "item" : "items"}
+        </span>
+      </div>
+      <div className="space-y-2">
         {cart.map((item) => (
           <CartItemRow
-            key={item.id}
+            key={item.lineId}
             item={item}
             onUpdateQuantity={updateQuantity}
             onRemove={removeFromCart}
           />
         ))}
       </div>
-      <Separator />
-      <CartFooter total={getCartTotal()} itemCount={getCartItemCount()} />
+      <CartFooter total={getCartTotal()} itemCount={itemCount} />
     </div>
   );
 }

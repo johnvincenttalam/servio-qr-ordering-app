@@ -1,42 +1,65 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { ChevronRight, UtensilsCrossed, Search } from "lucide-react";
 import { useMenu } from "@/hooks/useMenu";
 import { useAppStore } from "@/store/useAppStore";
 import { CategoryTabs } from "@/components/menu/CategoryTabs";
 import { MenuGrid } from "@/components/menu/MenuGrid";
 import { MenuItemModal } from "@/components/menu/MenuItemModal";
 import { MenuSkeleton } from "@/components/menu/MenuSkeleton";
+import { PromoCarousel } from "@/components/menu/PromoCarousel";
+import { TopPicksStrip } from "@/components/menu/TopPicksStrip";
+import { MenuSearchBar } from "@/components/menu/MenuSearchBar";
 import { EmptyState } from "@/components/common/EmptyState";
-import { UtensilsCrossed } from "lucide-react";
+import { PROMO_BANNERS } from "@/constants/banners";
 import { formatPrice } from "@/utils";
-import type { MenuItem, MenuCategory } from "@/types";
+import type { MenuItem, MenuCategory, CartItemSelection } from "@/types";
 
 export default function MenuPage() {
   const navigate = useNavigate();
   const tableId = useAppStore((s) => s.tableId);
   const addToCart = useAppStore((s) => s.addToCart);
-  const getCartTotal = useAppStore((s) => s.getCartTotal);
-  const getCartItemCount = useAppStore((s) => s.getCartItemCount);
+  const cartTotal = useAppStore((s) => s.getCartTotal());
+  const cartCount = useAppStore((s) => s.getCartItemCount());
 
   const { items, categories, isLoading } = useMenu();
   const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">(
     "all"
   );
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const topPicks = useMemo(
+    () => items.filter((item) => item.topPick),
+    [items]
+  );
 
   const filteredItems = useMemo(() => {
-    if (activeCategory === "all") return items;
-    return items.filter((item) => item.category === activeCategory);
-  }, [items, activeCategory]);
+    const query = searchQuery.trim().toLowerCase();
+    return items.filter((item) => {
+      if (activeCategory !== "all" && item.category !== activeCategory) {
+        return false;
+      }
+      if (query) {
+        return (
+          item.name.toLowerCase().includes(query) ||
+          item.description.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
+  }, [items, activeCategory, searchQuery]);
 
-  // Redirect if no table ID
   if (!tableId) {
     navigate("/", { replace: true });
     return null;
   }
 
-  const handleAddToCart = (item: MenuItem, quantity: number = 1) => {
+  const handleAddToCart = (
+    item: MenuItem,
+    quantity: number = 1,
+    selections: CartItemSelection[] = []
+  ) => {
     addToCart(
       {
         id: item.id,
@@ -44,37 +67,65 @@ export default function MenuPage() {
         price: item.price,
         image: item.image,
       },
+      selections,
       quantity
     );
-    toast.success(`${item.name} added to cart`);
+  };
+
+  const handleQuickAdd = (item: MenuItem) => {
+    const hasOptions = (item.options?.length ?? 0) > 0;
+    if (hasOptions) {
+      setSelectedItem(item);
+    } else {
+      handleAddToCart(item);
+    }
   };
 
   if (isLoading) {
     return <MenuSkeleton />;
   }
 
-  const cartTotal = getCartTotal();
-  const cartCount = getCartItemCount();
+  const isSearching = searchQuery.trim().length > 0;
+  const showHero = !isSearching;
+  const showTopPicks = topPicks.length > 0 && !isSearching;
 
   return (
-    <div className="space-y-4">
-      <CategoryTabs
-        categories={categories}
-        activeCategory={activeCategory}
-        onSelect={setActiveCategory}
-      />
+    <div className="space-y-3">
+      {showHero && <PromoCarousel banners={PROMO_BANNERS} />}
+
+      {showTopPicks && (
+        <TopPicksStrip
+          items={topPicks}
+          onSelect={setSelectedItem}
+          onAdd={handleQuickAdd}
+        />
+      )}
+
+      <MenuSearchBar value={searchQuery} onChange={setSearchQuery} />
+
+      {!isSearching && (
+        <CategoryTabs
+          categories={categories}
+          activeCategory={activeCategory}
+          onSelect={setActiveCategory}
+        />
+      )}
 
       {filteredItems.length === 0 ? (
         <EmptyState
-          icon={UtensilsCrossed}
-          title="No items found"
-          description="No items available in this category."
+          icon={isSearching ? Search : UtensilsCrossed}
+          title={isSearching ? "No matches" : "No items found"}
+          description={
+            isSearching
+              ? `Nothing matches "${searchQuery.trim()}". Try a different word.`
+              : "No items available in this category."
+          }
         />
       ) : (
         <MenuGrid
           items={filteredItems}
           onSelect={setSelectedItem}
-          onAdd={(item) => handleAddToCart(item)}
+          onAdd={handleQuickAdd}
         />
       )}
 
@@ -85,21 +136,25 @@ export default function MenuPage() {
         onAddToCart={handleAddToCart}
       />
 
-      {/* Floating cart bar */}
       {cartCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50">
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
           <div className="mx-auto max-w-md sm:max-w-lg lg:max-w-xl p-4">
             <button
               onClick={() => navigate("/cart")}
-              className="flex w-full items-center justify-between rounded-xl bg-emerald px-5 py-4 text-white shadow-lg transition-colors hover:bg-emerald/90"
+              className="pointer-events-auto group flex w-full items-center justify-between rounded-full bg-foreground px-5 py-4 text-background transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98] animate-fade-up"
             >
-              <span className="flex items-center gap-2 font-semibold">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-sm">
+              <span className="flex items-center gap-3 font-semibold">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-background/20 text-sm font-bold">
                   {cartCount}
                 </span>
-                View Cart
+                <span className="text-sm">View Cart</span>
               </span>
-              <span className="font-bold">{formatPrice(cartTotal)}</span>
+              <span className="flex items-center gap-2">
+                <span className="text-base font-bold">
+                  {formatPrice(cartTotal)}
+                </span>
+                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </span>
             </button>
           </div>
         </div>

@@ -1,13 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/outfit";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Outfit Variable', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,44 +46,42 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
-    --color-emerald: var(--emerald);
 }
 
 :root {
-    /* SERVIO Brand: Primary #1E3A8A, Accent #10B981, BG #F9FAFB */
-    --background: oklch(0.98 0.002 247);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
+    /* SERVIO Brand — minimal grayscale (iOS-style) */
+    --background: oklch(0.98 0 0);          /* off-white */
+    --foreground: oklch(0.18 0 0);          /* near-black */
+    --card: oklch(1 0 0);                    /* pure white */
+    --card-foreground: oklch(0.18 0 0);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.335 0.135 264);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.96 0.005 264);
-    --secondary-foreground: oklch(0.335 0.135 264);
-    --muted: oklch(0.96 0.005 264);
-    --muted-foreground: oklch(0.5 0.02 264);
-    --accent: oklch(0.96 0.005 264);
-    --accent-foreground: oklch(0.335 0.135 264);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0.005 264);
-    --input: oklch(0.922 0.005 264);
-    --ring: oklch(0.335 0.135 264);
-    --emerald: oklch(0.696 0.17 162.48);
-    --chart-1: oklch(0.335 0.135 264);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.6 0.118 264);
-    --chart-4: oklch(0.55 0.14 162);
-    --chart-5: oklch(0.45 0.1 264);
+    --popover-foreground: oklch(0.18 0 0);
+    --primary: oklch(0.18 0 0);              /* near-black */
+    --primary-foreground: oklch(0.99 0 0);
+    --secondary: oklch(0.96 0 0);
+    --secondary-foreground: oklch(0.18 0 0);
+    --muted: oklch(0.96 0 0);                /* light gray */
+    --muted-foreground: oklch(0.5 0 0);      /* medium gray */
+    --accent: oklch(0.96 0 0);
+    --accent-foreground: oklch(0.18 0 0);
+    --destructive: oklch(0.62 0.22 25);   /* iOS system red */
+    --border: oklch(0.92 0 0);               /* hairline gray */
+    --input: oklch(0.92 0 0);
+    --ring: oklch(0.18 0 0);
+    --chart-1: oklch(0.18 0 0);
+    --chart-2: oklch(0.4 0 0);
+    --chart-3: oklch(0.6 0 0);
+    --chart-4: oklch(0.78 0 0);
+    --chart-5: oklch(0.92 0 0);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.335 0.135 264);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.96 0.005 264);
-    --sidebar-accent-foreground: oklch(0.335 0.135 264);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.335 0.135 264);
+    --sidebar: oklch(1 0 0);
+    --sidebar-foreground: oklch(0.18 0 0);
+    --sidebar-primary: oklch(0.18 0 0);
+    --sidebar-primary-foreground: oklch(0.99 0 0);
+    --sidebar-accent: oklch(0.96 0 0);
+    --sidebar-accent-foreground: oklch(0.18 0 0);
+    --sidebar-border: oklch(0.92 0 0);
+    --sidebar-ring: oklch(0.18 0 0);
 }
 
 @layer base {
@@ -94,6 +92,104 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    @apply font-sans antialiased;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.025em;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  @keyframes pop-in {
+    0%   { transform: scale(0.6); opacity: 0; }
+    60%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-pop-in { animation: pop-in 350ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+  @keyframes fade-up {
+    0%   { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: fade-up 320ms ease-out both; }
+
+  @keyframes check-circle-draw {
+    to { stroke-dashoffset: 0; }
+  }
+  .animate-check-circle {
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: check-circle-draw 600ms cubic-bezier(0.65, 0, 0.45, 1) forwards;
+  }
+
+  @keyframes check-mark-draw {
+    to { stroke-dashoffset: 0; }
+  }
+  .animate-check-mark {
+    stroke-dasharray: 50;
+    stroke-dashoffset: 50;
+    animation: check-mark-draw 350ms 500ms cubic-bezier(0.65, 0, 0.45, 1) forwards;
+  }
+
+  @keyframes check-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+  }
+  .animate-check-pulse {
+    animation: check-pulse 600ms 850ms ease-out;
+  }
+
+  @keyframes clock-rotate {
+    to { transform: rotate(360deg); }
+  }
+  .animate-clock-hour {
+    animation: clock-rotate 8s linear infinite;
+  }
+  .animate-clock-minute {
+    animation: clock-rotate 2s linear infinite;
+  }
+
+  @keyframes steam-wisp {
+    0%   { opacity: 0; transform: translateY(3px) scaleY(0.6); }
+    25%  { opacity: 0.7; }
+    100% { opacity: 0; transform: translateY(-14px) scaleY(1.3); }
+  }
+  .animate-steam-1 { animation: steam-wisp 2s ease-out infinite; }
+  .animate-steam-2 { animation: steam-wisp 2s 600ms ease-out infinite; }
+  .animate-steam-3 { animation: steam-wisp 2s 1200ms ease-out infinite; }
+
+  @keyframes ready-glow {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+  .animate-ready-glow {
+    animation: ready-glow 2.4s ease-in-out 1.4s infinite;
+  }
+
+  @keyframes fly-to-cart {
+    0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+    25%  { transform: translate(calc(var(--dx) * 0.15), calc(var(--dy) * 0.15 - 36px)) scale(0.8); opacity: 0.95; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0.18); opacity: 0; }
+  }
+  .animate-fly-to-cart {
+    animation: fly-to-cart 720ms cubic-bezier(0.55, 0, 0.85, 0.2) forwards;
+  }
+
+  @keyframes tab-icon-pop {
+    0%   { transform: scale(0.7) rotate(-15deg); }
+    55%  { transform: scale(1.2) rotate(8deg); }
+    80%  { transform: scale(0.96) rotate(-3deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  .animate-tab-pop {
+    animation: tab-icon-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 }

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import HomePage from "@/pages/Home";
@@ -6,7 +7,29 @@ import CartPage from "@/pages/Cart";
 import CheckoutPage from "@/pages/Checkout";
 import OrderStatusPage from "@/pages/OrderStatus";
 
+const SPLASH_MIN_MS = 1800;
+const SPLASH_FADE_MS = 380;
+
+function useDismissSplash() {
+  useEffect(() => {
+    const splash = document.getElementById("app-splash");
+    if (!splash) return;
+
+    const elapsed = performance.now();
+    const remaining = Math.max(0, SPLASH_MIN_MS - elapsed);
+
+    const fadeTimer = window.setTimeout(() => {
+      splash.dataset.hide = "true";
+      window.setTimeout(() => splash.remove(), SPLASH_FADE_MS);
+    }, remaining);
+
+    return () => window.clearTimeout(fadeTimer);
+  }, []);
+}
+
 export default function App() {
+  useDismissSplash();
+
   return (
     <BrowserRouter>
       <Routes>

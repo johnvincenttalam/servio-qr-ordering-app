@@ -11,6 +11,7 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "meals",
     description:
       "Tender grilled chicken served over steamed rice with fresh vegetables and our signature sauce.",
+    topPick: true,
   },
   {
     id: "meal-2",
@@ -21,6 +22,7 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "meals",
     description:
       "Classic Filipino sour soup with tender beef short ribs, vegetables, and tamarind broth.",
+    topPick: true,
   },
   {
     id: "meal-3",
@@ -31,6 +33,18 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "meals",
     description:
       "Braised pork in soy sauce and vinegar with garlic and bay leaves. Served with steamed rice.",
+    topPick: true,
+    options: [
+      {
+        id: "rice",
+        name: "Add Rice",
+        type: "single",
+        choices: [
+          { id: "plain-rice", name: "Plain rice", priceDelta: 15 },
+          { id: "garlic-rice", name: "Garlic rice", priceDelta: 20 },
+        ],
+      },
+    ],
   },
   // Drinks
   {
@@ -42,6 +56,18 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "drinks",
     description:
       "Fresh Philippine mango blended with ice and milk for a creamy tropical treat.",
+    options: [
+      {
+        id: "size",
+        name: "Size",
+        type: "single",
+        required: true,
+        choices: [
+          { id: "regular", name: "Regular" },
+          { id: "large", name: "Large", priceDelta: 30 },
+        ],
+      },
+    ],
   },
   {
     id: "drink-2",
@@ -52,6 +78,7 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "drinks",
     description:
       "Locally roasted coffee served over ice with your choice of milk or black.",
+    topPick: true,
   },
   {
     id: "drink-3",
@@ -78,8 +105,7 @@ export const MENU_ITEMS: MenuItem[] = [
     id: "dessert-2",
     name: "Halo-Halo",
     price: 129,
-    image:
-      "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400&h=300&fit=crop",
+    image: "/images/halo-halo.png",
     category: "desserts",
     description:
       "Shaved ice with sweet beans, jellies, fruits, leche flan, ube ice cream, and evaporated milk.",
@@ -114,6 +140,7 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "sides",
     description:
       "Crispy fried spring rolls filled with seasoned ground pork and vegetables. Served with sweet chili sauce.",
+    inStock: false,
   },
   {
     id: "side-3",

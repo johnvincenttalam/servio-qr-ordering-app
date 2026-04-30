@@ -1,7 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Clock, ChefHat, CheckCircle2, UtensilsCrossed } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, UtensilsCrossed } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
 import { useOrderStatus } from "@/hooks/useOrderStatus";
@@ -9,19 +7,11 @@ import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_DESCRIPTIONS,
 } from "@/constants";
+import { AnimatedStatusIcon } from "@/components/order/AnimatedStatusIcon";
 import type { OrderStatus } from "@/types";
+import { cn } from "@/lib/utils";
 
-const STATUS_ICONS: Record<OrderStatus, typeof Clock> = {
-  pending: Clock,
-  preparing: ChefHat,
-  ready: CheckCircle2,
-};
-
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: "text-yellow-500 bg-yellow-50",
-  preparing: "text-blue-500 bg-blue-50",
-  ready: "text-emerald bg-emerald/10",
-};
+const STEPS: OrderStatus[] = ["pending", "preparing", "ready"];
 
 export default function OrderStatusPage() {
   const navigate = useNavigate();
@@ -37,14 +27,19 @@ export default function OrderStatusPage() {
   if (!currentOrderId) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <div className="rounded-full bg-muted p-4">
-          <UtensilsCrossed className="h-10 w-10 text-muted-foreground" />
+        <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-border bg-muted">
+          <UtensilsCrossed className="h-9 w-9 text-muted-foreground" />
         </div>
-        <h2 className="text-lg font-bold">No Active Order</h2>
+        <h2 className="text-xl font-bold">No Active Order</h2>
         <p className="text-sm text-muted-foreground">
           You haven&apos;t placed any orders yet.
         </p>
-        <Button onClick={() => navigate("/menu")}>Browse Menu</Button>
+        <button
+          onClick={() => navigate("/menu")}
+          className="rounded-full bg-foreground px-5 py-3 text-sm font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
+        >
+          Browse Menu
+        </button>
       </div>
     );
   }
@@ -53,7 +48,7 @@ export default function OrderStatusPage() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-40 w-full rounded-lg" />
+        <Skeleton className="h-56 w-full rounded-3xl" />
       </div>
     );
   }
@@ -66,75 +61,114 @@ export default function OrderStatusPage() {
     );
   }
 
-  const StatusIcon = STATUS_ICONS[order.status];
-  const statusColor = STATUS_COLORS[order.status];
+  const currentIndex = STEPS.indexOf(order.status);
+  const isReady = order.status === "ready";
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold">Order Status</h2>
+      <h2 className="text-2xl font-bold">Order Status</h2>
 
-      <Card>
-        <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
-          <div className={`rounded-full p-4 ${statusColor}`}>
-            <StatusIcon className="h-10 w-10" />
+      <section
+        className={cn(
+          "rounded-3xl p-6 animate-fade-up",
+          isReady
+            ? "bg-foreground text-background"
+            : "border border-border bg-card text-foreground"
+        )}
+      >
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div
+            key={order.status}
+            className={cn(
+              "flex h-20 w-20 items-center justify-center rounded-3xl",
+              isReady ? "bg-background/10" : "bg-muted"
+            )}
+          >
+            <AnimatedStatusIcon status={order.status} />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Order {order.id}</p>
-            <h3 className="mt-1 text-xl font-bold">
+            <span
+              className={cn(
+                "inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider",
+                isReady ? "bg-background/15" : "bg-muted text-muted-foreground"
+              )}
+            >
+              Order #{order.id}
+            </span>
+            <h3 className="mt-2 text-3xl font-bold leading-tight">
               {ORDER_STATUS_LABELS[order.status]}
             </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p
+              className={cn(
+                "mx-auto mt-2 max-w-xs text-sm",
+                isReady ? "text-background/75" : "text-muted-foreground"
+              )}
+            >
               {ORDER_STATUS_DESCRIPTIONS[order.status]}
             </p>
           </div>
+        </div>
+      </section>
 
-          {/* Status progress */}
-          <div className="flex w-full items-center justify-center gap-2 pt-2">
-            {(["pending", "preparing", "ready"] as OrderStatus[]).map(
-              (step, i) => {
-                const stepIndex = ["pending", "preparing", "ready"].indexOf(
-                  step
-                );
-                const currentIndex = [
-                  "pending",
-                  "preparing",
-                  "ready",
-                ].indexOf(order.status);
-                const isActive = stepIndex <= currentIndex;
-                return (
-                  <div key={step} className="flex items-center gap-2">
-                    <div
-                      className={`h-3 w-3 rounded-full ${
-                        isActive ? "bg-emerald" : "bg-muted"
-                      }`}
-                    />
-                    {i < 2 && (
-                      <div
-                        className={`h-0.5 w-8 ${
-                          stepIndex < currentIndex ? "bg-emerald" : "bg-muted"
-                        }`}
-                      />
+      <section className="rounded-3xl border border-border bg-card p-5 animate-fade-up">
+        <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Progress
+        </h4>
+        <div className="flex items-center">
+          {STEPS.map((step, i) => {
+            const isComplete = i < currentIndex;
+            const isCurrent = i === currentIndex;
+            const isActive = isComplete || isCurrent;
+            return (
+              <div key={step} className="flex flex-1 items-center last:flex-initial">
+                <div className="relative flex flex-col items-center gap-2">
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all",
+                      isActive
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground border border-border"
+                    )}
+                  >
+                    {isComplete ? (
+                      <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
+                    ) : (
+                      i + 1
                     )}
                   </div>
-                );
-              }
-            )}
-          </div>
-          <div className="flex w-full justify-between px-1 text-xs text-muted-foreground">
-            <span>Pending</span>
-            <span>Preparing</span>
-            <span>Ready</span>
-          </div>
-        </CardContent>
-      </Card>
+                  <span
+                    className={cn(
+                      "absolute top-11 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider",
+                      isActive ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {ORDER_STATUS_LABELS[step]}
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div className="mx-1 h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        "h-full bg-foreground transition-all duration-500",
+                        isComplete ? "w-full" : "w-0"
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="h-6" />
+      </section>
 
-      {order.status === "ready" && (
-        <Button
-          className="w-full bg-emerald py-6 text-base font-semibold hover:bg-emerald/90"
+      {isReady && (
+        <button
           onClick={() => navigate("/menu")}
+          className="w-full rounded-full bg-foreground py-4 text-base font-semibold text-background transition-transform hover:scale-[1.01] active:scale-[0.98]"
         >
           Order Again
-        </Button>
+        </button>
       )}
     </div>
   );
