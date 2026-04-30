@@ -321,22 +321,21 @@ function MenuItemRow({
 }) {
   const inStock = item.inStock !== false;
   const hasOptions = (item.options?.length ?? 0) > 0;
-  const hasMetaPrefix = showCategory || hasOptions;
 
   return (
     <li
       className={cn(
-        "flex items-center gap-3 rounded-3xl border border-border bg-card p-3 transition-colors hover:border-foreground/20",
+        "flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition-colors hover:border-foreground/20",
         !inStock && "border-l-4 border-l-destructive"
       )}
     >
       <button
         type="button"
         onClick={onEdit}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2 rounded-2xl"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
         aria-label={`Edit ${item.name}`}
       >
-        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-border bg-muted">
+        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
           <img
             src={item.image}
             alt={item.name}
@@ -348,12 +347,12 @@ function MenuItemRow({
           />
           {item.topPick && (
             <span
-              className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-warning"
+              className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-warning"
               title="Top pick"
               aria-label="Top pick"
             >
               <Sparkles
-                className="h-2.5 w-2.5 text-foreground"
+                className="h-2 w-2 text-foreground"
                 strokeWidth={2.5}
               />
             </span>
@@ -361,17 +360,12 @@ function MenuItemRow({
         </div>
 
         <div className={cn("min-w-0 flex-1", !inStock && "opacity-70")}>
-          <div className="flex items-baseline justify-between gap-2">
-            <h3 className="truncate text-base font-bold leading-tight">
-              {item.name}
-            </h3>
-            <span className="w-20 shrink-0 text-right text-base font-semibold tabular-nums">
-              {formatPrice(item.price)}
-            </span>
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <h3 className="truncate text-sm font-bold leading-tight">
+            {item.name}
+          </h3>
+          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
             {showCategory && (
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-semibold uppercase tracking-wider text-foreground/70">
+              <span className="shrink-0 rounded-full bg-muted px-1.5 py-0 font-semibold uppercase tracking-wider text-foreground/70">
                 {CATEGORY_LABELS[item.category]}
               </span>
             )}
@@ -381,33 +375,31 @@ function MenuItemRow({
                 {item.options!.length === 1 ? "option" : "options"}
               </span>
             )}
-            <span className="hidden min-w-0 flex-1 truncate md:block">
-              {hasMetaPrefix && "· "}
-              {item.description}
-            </span>
+            {!inStock && (
+              <span className="shrink-0 font-semibold text-destructive">
+                Sold out
+              </span>
+            )}
           </div>
         </div>
       </button>
 
-      <div className="flex shrink-0 items-center gap-2">
-        {!inStock && (
-          <span className="hidden text-xs font-semibold text-destructive sm:inline">
-            Sold out
-          </span>
-        )}
-        <StockSwitch
-          inStock={inStock}
-          onChange={onToggleStock}
-          itemName={item.name}
-        />
-      </div>
+      <span className="w-20 shrink-0 text-right text-sm font-semibold tabular-nums">
+        {formatPrice(item.price)}
+      </span>
+
+      <StockSwitch
+        inStock={inStock}
+        onChange={onToggleStock}
+        itemName={item.name}
+      />
 
       <button
         type="button"
         onClick={onEdit}
         title="Edit"
         aria-label={`Edit ${item.name}`}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
       >
         <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
       </button>
@@ -454,18 +446,19 @@ function StockSwitch({
 function ListSkeleton() {
   return (
     <ul className="space-y-2">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <li
           key={i}
-          className="flex items-center gap-3 rounded-3xl border border-border bg-card p-3"
+          className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5"
         >
-          <div className="h-16 w-16 shrink-0 rounded-2xl bg-muted" />
+          <div className="h-14 w-14 shrink-0 rounded-xl bg-muted" />
           <div className="flex-1 space-y-1.5">
-            <div className="h-4 w-1/3 rounded bg-muted" />
-            <div className="h-3 w-1/2 rounded bg-muted" />
+            <div className="h-3.5 w-1/3 rounded bg-muted" />
+            <div className="h-3 w-1/4 rounded bg-muted" />
           </div>
-          <div className="h-7 w-24 rounded-full bg-muted" />
-          <div className="h-9 w-9 rounded-full bg-muted" />
+          <div className="h-4 w-16 rounded bg-muted" />
+          <div className="h-6 w-11 rounded-full bg-muted" />
+          <div className="h-8 w-8 rounded-full bg-muted" />
         </li>
       ))}
     </ul>
