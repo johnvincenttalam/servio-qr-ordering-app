@@ -14,6 +14,7 @@ export type StaffRole = "admin" | "kitchen" | "waiter";
 interface AuthContextValue {
   user: User | null;
   role: StaffRole | null;
+  displayName: string | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -25,25 +26,42 @@ const INIT_TIMEOUT_MS = 2000;
 const ROLE_QUERY_TIMEOUT_MS = 3000;
 
 const ROLE_CACHE_KEY = "servio.auth.role";
+const NAME_CACHE_KEY = "servio.auth.displayName";
 const USERID_CACHE_KEY = "servio.auth.userId";
 
-function getCachedRole(userId: string): StaffRole | null {
+interface CachedStaff {
+  role: StaffRole;
+  displayName: string | null;
+}
+
+function getCachedStaff(userId: string): CachedStaff | null {
   try {
     if (sessionStorage.getItem(USERID_CACHE_KEY) !== userId) return null;
-    return sessionStorage.getItem(ROLE_CACHE_KEY) as StaffRole | null;
+    const role = sessionStorage.getItem(ROLE_CACHE_KEY) as StaffRole | null;
+    if (!role) return null;
+    return {
+      role,
+      displayName: sessionStorage.getItem(NAME_CACHE_KEY) || null,
+    };
   } catch {
     return null;
   }
 }
 
-function setCachedRole(userId: string | null, role: StaffRole | null) {
+function setCachedStaff(userId: string | null, staff: CachedStaff | null) {
   try {
-    if (userId && role) {
+    if (userId && staff) {
       sessionStorage.setItem(USERID_CACHE_KEY, userId);
-      sessionStorage.setItem(ROLE_CACHE_KEY, role);
+      sessionStorage.setItem(ROLE_CACHE_KEY, staff.role);
+      if (staff.displayName) {
+        sessionStorage.setItem(NAME_CACHE_KEY, staff.displayName);
+      } else {
+        sessionStorage.removeItem(NAME_CACHE_KEY);
+      }
     } else {
       sessionStorage.removeItem(USERID_CACHE_KEY);
       sessionStorage.removeItem(ROLE_CACHE_KEY);
+      sessionStorage.removeItem(NAME_CACHE_KEY);
     }
   } catch {
     // sessionStorage may throw in private browsing — fail silent
@@ -65,39 +83,47 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<StaffRole | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     let firstEventReceived = false;
 
-    async function fetchRoleFromDb(userId: string): Promise<StaffRole | null> {
+    async function fetchStaffFromDb(
+      userId: string
+    ): Promise<CachedStaff | null> {
       try {
         const { data, error } = await withTimeout(
           supabase
             .from("staff")
-            .select("role")
+            .select("role, display_name")
             .eq("user_id", userId)
             .maybeSingle(),
           ROLE_QUERY_TIMEOUT_MS,
-          "loadStaffRole"
+          "loadStaff"
         );
         if (error) {
-          console.error("[auth] loadStaffRole error:", error);
+          console.error("[auth] loadStaff error:", error);
           return null;
         }
-        return (data?.role as StaffRole | undefined) ?? null;
+        if (!data?.role) return null;
+        return {
+          role: data.role as StaffRole,
+          displayName: (data.display_name as string | null) ?? null,
+        };
       } catch (err) {
-        console.error("[auth] loadStaffRole failed:", err);
+        console.error("[auth] loadStaff failed:", err);
         return null;
       }
     }
 
-    async function backgroundRefreshRole(userId: string) {
-      const dbRole = await fetchRoleFromDb(userId);
+    async function backgroundRefreshStaff(userId: string) {
+      const fresh = await fetchStaffFromDb(userId);
       if (cancelled) return;
-      setCachedRole(userId, dbRole);
-      setRole(dbRole);
+      setCachedStaff(userId, fresh);
+      setRole(fresh?.role ?? null);
+      setDisplayName(fresh?.displayName ?? null);
     }
 
     async function handleAuthEvent(session: { user: User | null } | null) {
@@ -105,24 +131,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(nextUser);
 
       if (!nextUser) {
-        setCachedRole(null, null);
+        setCachedStaff(null, null);
         setRole(null);
+        setDisplayName(null);
         if (!cancelled) setIsLoading(false);
         return;
       }
 
-      const cached = getCachedRole(nextUser.id);
+      const cached = getCachedStaff(nextUser.id);
       if (cached) {
         // Instant: trust cache, unblock UI now, refresh in background
-        setRole(cached);
+        setRole(cached.role);
+        setDisplayName(cached.displayName);
         if (!cancelled) setIsLoading(false);
-        backgroundRefreshRole(nextUser.id);
+        backgroundRefreshStaff(nextUser.id);
       } else {
         // No cache: wait for DB (with timeout) before unblocking
-        const dbRole = await fetchRoleFromDb(nextUser.id);
+        const fresh = await fetchStaffFromDb(nextUser.id);
         if (cancelled) return;
-        setCachedRole(nextUser.id, dbRole);
-        setRole(dbRole);
+        setCachedStaff(nextUser.id, fresh);
+        setRole(fresh?.role ?? null);
+        setDisplayName(fresh?.displayName ?? null);
         setIsLoading(false);
       }
     }
@@ -144,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         setUser(null);
         setRole(null);
+        setDisplayName(null);
         setIsLoading(false);
       }
     }, INIT_TIMEOUT_MS);
@@ -164,12 +194,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    setCachedRole(null, null);
+    setCachedStaff(null, null);
     await supabase.auth.signOut();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, role, isLoading, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{ user, role, displayName, isLoading, signIn, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );

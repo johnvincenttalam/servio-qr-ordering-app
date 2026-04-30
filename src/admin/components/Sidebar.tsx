@@ -16,7 +16,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
-  const { user, role, signOut } = useAuth();
+  const { user, role, displayName, signOut } = useAuth();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -30,8 +30,13 @@ export function Sidebar() {
     }
   };
 
-  const initial =
-    user?.email?.[0]?.toUpperCase() ?? user?.id.slice(0, 1).toUpperCase() ?? "?";
+  // Prefer the staff display_name; fall back to the email's local-part
+  // (everything before "@") so the avatar always has a real-looking label.
+  const visibleName =
+    displayName?.trim() ||
+    user?.email?.split("@")[0] ||
+    "Staff";
+  const initial = visibleName[0]?.toUpperCase() ?? "?";
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
@@ -79,7 +84,7 @@ export function Sidebar() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold leading-tight">
-              {user?.email}
+              {visibleName}
             </p>
             {role && (
               <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
