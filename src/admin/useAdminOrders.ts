@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import type { CartItemSelection, OrderStatus } from "@/types";
 
 export type AdminOrderStatus = OrderStatus | "served" | "cancelled";
@@ -111,35 +112,20 @@ export function useAdminOrders(): UseAdminOrdersReturn {
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       await refetch();
       if (!cancelled) setIsLoading(false);
     })();
-
-    const channel = supabase
-      .channel("admin-orders")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => {
-          if (!cancelled) refetch();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_items" },
-        () => {
-          if (!cancelled) refetch();
-        }
-      )
-      .subscribe();
-
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
     };
   }, [refetch]);
+
+  useRealtimeTables({
+    channel: "admin-orders",
+    tables: ["orders", "order_items"],
+    onChange: () => refetch(),
+  });
 
   const setStatus = useCallback(
     async (id: string, status: AdminOrderStatus) => {

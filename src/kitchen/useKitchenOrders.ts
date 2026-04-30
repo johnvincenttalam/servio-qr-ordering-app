@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import type { CartItemSelection, OrderStatus } from "@/types";
 
 export interface KitchenOrderItem {
@@ -99,50 +100,32 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       await refetch();
       if (!cancelled) setIsLoading(false);
     })();
-
-    const channel = supabase
-      .channel("kitchen-orders")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        (payload) => {
-          if (cancelled) return;
-          console.log(
-            "[kitchen] orders event:",
-            payload.eventType,
-            (payload.new as { id?: string } | null)?.id
-          );
-          refetch();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_items" },
-        (payload) => {
-          if (cancelled) return;
-          console.log(
-            "[kitchen] order_items event:",
-            payload.eventType,
-            (payload.new as { order_id?: string } | null)?.order_id
-          );
-          refetch();
-        }
-      )
-      .subscribe((status) => {
-        console.log("[kitchen] realtime status:", status);
-        if (!cancelled) setRealtimeStatus(status);
-      });
-
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
     };
   }, [refetch]);
+
+  useRealtimeTables({
+    channel: "kitchen-orders",
+    tables: ["orders", "order_items"],
+    onChange: (table, payload) => {
+      const row = payload.new as { id?: string; order_id?: string } | null;
+      console.log(
+        `[kitchen] ${table} event:`,
+        payload.eventType,
+        row?.id ?? row?.order_id
+      );
+      refetch();
+    },
+    onStatus: (status) => {
+      console.log("[kitchen] realtime status:", status);
+      setRealtimeStatus(status);
+    },
+  });
 
   const advance = useCallback(
     async (id: string, current: OrderStatus) => {
