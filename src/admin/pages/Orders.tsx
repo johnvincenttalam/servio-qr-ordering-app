@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/utils";
+import { WaiterCallsBanner } from "@/components/common/WaiterCallsBanner";
 import {
   useAdminOrders,
   type AdminOrder,
@@ -129,6 +130,8 @@ export default function OrdersPage() {
           <p>{error}</p>
         </div>
       )}
+
+      <WaiterCallsBanner emphasize="bill" />
 
       <SearchBar
         searchQuery={searchQuery}

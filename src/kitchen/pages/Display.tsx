@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
+import { WaiterCallsBanner } from "@/components/common/WaiterCallsBanner";
 import { useKitchenOrders, type KitchenOrder } from "../useKitchenOrders";
 import { OrderTicket } from "../components/OrderTicket";
 import type { OrderStatus } from "@/types";
@@ -151,6 +152,8 @@ export default function DisplayPage() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 py-6">
+        <WaiterCallsBanner emphasize="service" />
+
         {error && (
           <div className="mb-4 flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
