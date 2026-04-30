@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import type { OrderStatus } from "@/types";
 
 export interface DashboardStats {
@@ -117,28 +118,20 @@ export function useDashboardStats(): UseDashboardStatsReturn {
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       await refetch();
       if (!cancelled) setIsLoading(false);
     })();
-
-    const channel = supabase
-      .channel("admin-dashboard")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => {
-          if (!cancelled) refetch();
-        }
-      )
-      .subscribe();
-
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
     };
   }, [refetch]);
+
+  useRealtimeTables({
+    channel: "admin-dashboard",
+    tables: ["orders"],
+    onChange: () => refetch(),
+  });
 
   return { stats, recent, isLoading, error, refetch };
 }

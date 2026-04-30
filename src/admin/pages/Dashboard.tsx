@@ -8,8 +8,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useDashboardStats, type RecentOrder } from "../useDashboardStats";
+import { ADMIN_STATUS_LABEL, ADMIN_STATUS_PILL } from "../orderStatus";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/utils";
+import { formatPrice, formatRelative } from "@/utils";
 
 export default function DashboardPage() {
   const { user, role } = useAuth();
@@ -184,22 +185,6 @@ function RecentActivity({
   );
 }
 
-const STATUS_LABEL: Record<RecentOrder["status"], string> = {
-  pending: "Pending",
-  preparing: "Preparing",
-  ready: "Ready",
-  served: "Served",
-  cancelled: "Cancelled",
-};
-
-const STATUS_PILL: Record<RecentOrder["status"], string> = {
-  pending: "bg-warning text-foreground",
-  preparing: "bg-info text-white",
-  ready: "bg-success text-white",
-  served: "bg-muted text-muted-foreground",
-  cancelled: "bg-destructive text-white",
-};
-
 function RecentOrderRow({ order }: { order: RecentOrder }) {
   return (
     <div className="flex items-center gap-3 py-3">
@@ -219,7 +204,7 @@ function RecentOrderRow({ order }: { order: RecentOrder }) {
         </p>
         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Clock className="h-3 w-3" strokeWidth={2.2} />
-          {formatRelative(order.createdAt)}
+          {formatRelative(order.createdAt, Date.now())}
         </p>
       </div>
       <div className="text-right">
@@ -229,23 +214,13 @@ function RecentOrderRow({ order }: { order: RecentOrder }) {
         <span
           className={cn(
             "mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
-            STATUS_PILL[order.status]
+            ADMIN_STATUS_PILL[order.status]
           )}
         >
-          {STATUS_LABEL[order.status]}
+          {ADMIN_STATUS_LABEL[order.status]}
         </span>
       </div>
     </div>
   );
 }
 
-function formatRelative(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
