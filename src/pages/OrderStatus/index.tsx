@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, UtensilsCrossed } from "lucide-react";
+import { Bell, CheckCircle2, ChevronRight, UtensilsCrossed } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
 import { useOrderStatus } from "@/hooks/useOrderStatus";
@@ -9,6 +9,7 @@ import {
   ORDER_STATUS_DESCRIPTIONS,
 } from "@/constants";
 import { AnimatedStatusIcon } from "@/components/order/AnimatedStatusIcon";
+import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
 import type { OrderStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export default function OrderStatusPage() {
   const effectiveOrderId = queryOrderId ?? currentOrderId;
 
   const { order, isLoading } = useOrderStatus(effectiveOrderId);
+  const [callSheetOpen, setCallSheetOpen] = useState(false);
 
   useEffect(() => {
     if (queryOrderId && queryOrderId !== currentOrderId) {
@@ -192,6 +194,28 @@ export default function OrderStatusPage() {
         <div className="h-6" />
       </section>
 
+      <button
+        type="button"
+        onClick={() => setCallSheetOpen(true)}
+        className="flex w-full items-center justify-between gap-3 rounded-3xl border border-border bg-card p-4 text-left transition-colors hover:border-foreground/30 active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+            <Bell className="h-4 w-4" strokeWidth={2.4} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold leading-tight">Need help?</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Call a waiter or request the bill
+            </p>
+          </div>
+        </div>
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-muted-foreground"
+          strokeWidth={2.2}
+        />
+      </button>
+
       {isReady && (
         <button
           onClick={() => navigate("/menu")}
@@ -200,6 +224,14 @@ export default function OrderStatusPage() {
           Order Again
         </button>
       )}
+
+      <WaiterCallSheet
+        open={callSheetOpen}
+        onClose={() => setCallSheetOpen(false)}
+        tableId={order.tableId}
+        orderId={order.id}
+        showBill={true}
+      />
     </div>
   );
 }

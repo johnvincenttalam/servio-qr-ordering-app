@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, UtensilsCrossed, Search } from "lucide-react";
+import { Bell, ChevronRight, UtensilsCrossed, Search } from "lucide-react";
 import { useMenu } from "@/hooks/useMenu";
 import { useAppStore } from "@/store/useAppStore";
 import { CategoryTabs } from "@/components/menu/CategoryTabs";
@@ -11,7 +11,9 @@ import { PromoCarousel } from "@/components/menu/PromoCarousel";
 import { TopPicksStrip } from "@/components/menu/TopPicksStrip";
 import { MenuSearchBar } from "@/components/menu/MenuSearchBar";
 import { EmptyState } from "@/components/common/EmptyState";
+import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
 import { formatPrice } from "@/utils";
+import { cn } from "@/lib/utils";
 import type { MenuItem, MenuCategory, CartItemSelection } from "@/types";
 
 export default function MenuPage() {
@@ -27,6 +29,7 @@ export default function MenuPage() {
   );
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [callSheetOpen, setCallSheetOpen] = useState(false);
 
   const topPicks = useMemo(
     () => items.filter((item) => item.topPick),
@@ -133,6 +136,25 @@ export default function MenuPage() {
         open={selectedItem !== null}
         onClose={() => setSelectedItem(null)}
         onAddToCart={handleAddToCart}
+      />
+
+      <button
+        type="button"
+        onClick={() => setCallSheetOpen(true)}
+        aria-label="Call waiter"
+        className={cn(
+          "fixed right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md shadow-black/5 transition-all hover:scale-105 active:scale-95",
+          cartCount > 0 ? "bottom-24" : "bottom-4"
+        )}
+      >
+        <Bell className="h-5 w-5" strokeWidth={2.2} />
+      </button>
+
+      <WaiterCallSheet
+        open={callSheetOpen}
+        onClose={() => setCallSheetOpen(false)}
+        tableId={tableId}
+        showBill={false}
       />
 
       {cartCount > 0 && (

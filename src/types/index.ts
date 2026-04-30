@@ -64,3 +64,16 @@ export interface PromoBanner {
   title?: string;
   subtitle?: string;
 }
+
+export type WaiterCallKind = "service" | "bill";
+
+export interface WaiterCall {
+  id: string;
+  tableId: string;
+  orderId: string | null;
+  kind: WaiterCallKind;
+  note: string | null;
+  createdAt: number;
+  resolvedAt: number | null;
+  resolvedBy: string | null;
+}
