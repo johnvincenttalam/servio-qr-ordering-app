@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Search, X } from "lucide-react";
+import { AlertCircle, MessageSquare, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/utils";
 import { WaiterCallsBanner } from "@/components/common/WaiterCallsBanner";
@@ -146,16 +146,28 @@ export default function OrdersPage() {
       ) : filtered.length === 0 ? (
         <EmptyMessage isFiltering={isFiltering} onClear={clearFilters} />
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((order) => (
-            <OrderRow
-              key={order.id}
-              order={order}
+        <>
+          {/* Desktop: dense scannable table — operators sort/compare across orders */}
+          <div className="hidden md:block">
+            <OrdersTable
+              orders={filtered}
               now={now}
-              onClick={() => setSelectedId(order.id)}
+              onSelect={setSelectedId}
             />
-          ))}
-        </ul>
+          </div>
+
+          {/* Mobile: card list — touch-friendly, easier to read on narrow screens */}
+          <ul className="space-y-2 md:hidden">
+            {filtered.map((order) => (
+              <OrderRow
+                key={order.id}
+                order={order}
+                now={now}
+                onClick={() => setSelectedId(order.id)}
+              />
+            ))}
+          </ul>
+        </>
       )}
 
       <OrderDetail
@@ -335,6 +347,119 @@ function OrderRow({
         </span>
       </button>
     </li>
+  );
+}
+
+function OrdersTable({
+  orders,
+  now,
+  onSelect,
+}: {
+  orders: AdminOrder[];
+  now: number;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-border bg-card">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/30 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <th className="px-4 py-2.5 w-[64px]">Table</th>
+            <th className="px-4 py-2.5">Order</th>
+            <th className="px-4 py-2.5 text-right w-[72px]">Items</th>
+            <th className="px-4 py-2.5 w-[100px]">Age</th>
+            <th className="px-4 py-2.5 text-right w-[110px]">Total</th>
+            <th className="px-4 py-2.5 w-[140px]">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((order) => (
+            <OrderTableRow
+              key={order.id}
+              order={order}
+              now={now}
+              onSelect={() => onSelect(order.id)}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function OrderTableRow({
+  order,
+  now,
+  onSelect,
+}: {
+  order: AdminOrder;
+  now: number;
+  onSelect: () => void;
+}) {
+  const Icon = ADMIN_STATUS_ICON[order.status];
+  const itemCount = order.items.reduce((sum, it) => sum + it.quantity, 0);
+  const isTerminal =
+    order.status === "served" || order.status === "cancelled";
+
+  return (
+    <tr
+      onClick={onSelect}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "cursor-pointer border-b border-border/60 transition-colors last:border-b-0 hover:bg-muted/40 focus:bg-muted/40 focus:outline-none",
+        isTerminal && "opacity-65"
+      )}
+    >
+      <td className="px-4 py-3">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-sm font-extrabold tracking-tight">
+          {order.tableId}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex min-w-0 flex-col">
+          <span className="flex items-center gap-1.5 truncate font-semibold leading-tight">
+            <span className="truncate">{order.customerName ?? "Guest"}</span>
+            {order.notes && (
+              <span title={order.notes} aria-label={`Note: ${order.notes}`}>
+                <MessageSquare
+                  className="h-3 w-3 shrink-0 text-muted-foreground"
+                  strokeWidth={2.4}
+                />
+              </span>
+            )}
+          </span>
+          <span className="font-mono text-[10px] font-medium text-muted-foreground">
+            {order.id}
+          </span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-right tabular-nums text-foreground/80">
+        {itemCount}
+      </td>
+      <td className="px-4 py-3 text-xs text-muted-foreground">
+        {formatRelative(order.createdAt, now)}
+      </td>
+      <td className="px-4 py-3 text-right text-base font-bold tabular-nums">
+        {formatPrice(order.total)}
+      </td>
+      <td className="px-4 py-3">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider",
+            ADMIN_STATUS_PILL[order.status]
+          )}
+        >
+          <Icon className="h-3 w-3" strokeWidth={2.4} />
+          {ADMIN_STATUS_LABEL[order.status]}
+        </span>
+      </td>
+    </tr>
   );
 }
 
