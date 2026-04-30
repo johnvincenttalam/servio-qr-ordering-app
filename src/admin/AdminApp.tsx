@@ -4,6 +4,7 @@ import { AdminLayout } from "./AdminLayout";
 import LoginPage from "./pages/Login";
 import DashboardPage from "./pages/Dashboard";
 import MenuManagerPage from "./pages/MenuManager";
+import OrdersPage from "./pages/Orders";
 import ComingSoon from "./pages/ComingSoon";
 
 export default function AdminApp() {
@@ -19,15 +20,7 @@ export default function AdminApp() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route
-          path="orders"
-          element={
-            <ComingSoon
-              title="Orders"
-              description="A complete order history with filters, search, and per-order details. Coming next after the menu manager."
-            />
-          }
-        />
+        <Route path="orders" element={<OrdersPage />} />
         <Route
           path="menu"
           element={

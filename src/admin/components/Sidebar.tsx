@@ -52,12 +52,7 @@ export function Sidebar() {
 
       <nav className="flex-1 space-y-0.5 p-3">
         <SidebarLink to="/admin" end icon={LayoutDashboard} label="Dashboard" />
-        <SidebarLink
-          to="/admin/orders"
-          icon={ListOrdered}
-          label="Orders"
-          badge="Soon"
-        />
+        <SidebarLink to="/admin/orders" icon={ListOrdered} label="Orders" />
         <SidebarLink to="/admin/menu" icon={UtensilsCrossed} label="Menu" />
         <SidebarLink
           to="/admin/banners"
