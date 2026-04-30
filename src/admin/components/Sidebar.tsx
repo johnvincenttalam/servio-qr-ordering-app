@@ -5,6 +5,7 @@ import {
   ListOrdered,
   UtensilsCrossed,
   Image as ImageIcon,
+  Users,
   ChefHat,
   LogOut,
   Utensils,
@@ -55,6 +56,9 @@ export function Sidebar() {
         <SidebarLink to="/admin/orders" icon={ListOrdered} label="Orders" />
         <SidebarLink to="/admin/menu" icon={UtensilsCrossed} label="Menu" />
         <SidebarLink to="/admin/banners" icon={ImageIcon} label="Banners" />
+        {role === "admin" && (
+          <SidebarLink to="/admin/staff" icon={Users} label="Staff" />
+        )}
 
         <div className="my-3 px-3">
           <div className="border-t border-border" />

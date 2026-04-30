@@ -6,6 +6,7 @@ import DashboardPage from "./pages/Dashboard";
 import MenuManagerPage from "./pages/MenuManager";
 import OrdersPage from "./pages/Orders";
 import BannersPage from "./pages/Banners";
+import StaffPage from "./pages/Staff";
 
 export default function AdminApp() {
   return (
@@ -34,6 +35,14 @@ export default function AdminApp() {
           element={
             <AuthGuard allowedRoles={["admin"]}>
               <BannersPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="staff"
+          element={
+            <AuthGuard allowedRoles={["admin"]}>
+              <StaffPage />
             </AuthGuard>
           }
         />
