@@ -14,6 +14,7 @@ import { CATEGORY_LABELS } from "@/constants";
 import { cn } from "@/lib/utils";
 import type { MenuCategory, MenuItem } from "@/types";
 import type { MenuItemDraft } from "../useAdminMenu";
+import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 
 interface MenuItemEditorProps {
   open: boolean;
@@ -281,32 +282,20 @@ export function MenuItemEditor({
 
         <footer className="border-t border-border bg-muted/40 px-5 py-3">
           {confirmingArchive ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium text-foreground">
-                Archive{" "}
-                <span className="font-bold">&ldquo;{item?.name}&rdquo;</span>?
-                It stays in past orders.
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmingArchive(false)}
-                  disabled={archiving}
-                  className="rounded-full px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleArchiveConfirm}
-                  disabled={archiving}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-4 py-2 text-xs font-semibold text-white transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
-                >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  {archiving ? "Archiving…" : "Archive"}
-                </button>
-              </div>
-            </div>
+            <ConfirmFooterRow
+              question={
+                <>
+                  Archive{" "}
+                  <span className="font-bold">&ldquo;{item?.name}&rdquo;</span>?
+                  It stays in past orders.
+                </>
+              }
+              confirmLabel="Archive"
+              pendingLabel="Archiving…"
+              pending={archiving}
+              onCancel={() => setConfirmingArchive(false)}
+              onConfirm={handleArchiveConfirm}
+            />
           ) : (
             <div className="flex items-center justify-between gap-2">
               {!isNew && onArchive ? (

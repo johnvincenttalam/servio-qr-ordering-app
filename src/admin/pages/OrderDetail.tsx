@@ -16,6 +16,7 @@ import {
   ADMIN_STATUS_PILL,
   ADMIN_STATUS_PROGRESSION,
 } from "../orderStatus";
+import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import type {
   AdminOrder,
   AdminOrderStatus,
@@ -239,31 +240,19 @@ export function OrderDetail({
 
         <footer className="border-t border-border bg-muted/40 px-5 py-3">
           {confirmingCancel ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium">
-                Cancel order{" "}
-                <span className="font-bold">{order.id}</span>?
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmingCancel(false)}
-                  disabled={pending}
-                  className="rounded-full px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-50"
-                >
-                  Keep order
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  disabled={pending}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-4 py-2 text-xs font-semibold text-white transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
-                >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  {pending ? "Cancelling…" : "Cancel order"}
-                </button>
-              </div>
-            </div>
+            <ConfirmFooterRow
+              question={
+                <>
+                  Cancel order <span className="font-bold">{order.id}</span>?
+                </>
+              }
+              cancelLabel="Keep order"
+              confirmLabel="Cancel order"
+              pendingLabel="Cancelling…"
+              pending={pending}
+              onCancel={() => setConfirmingCancel(false)}
+              onConfirm={handleCancel}
+            />
           ) : (
             <div className="flex items-center justify-between gap-2">
               {!isTerminal && order.status !== "cancelled" ? (

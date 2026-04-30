@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { AdminBanner, BannerDraft } from "../useAdminBanners";
+import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 
 interface BannerEditorProps {
   open: boolean;
@@ -220,30 +221,15 @@ export function BannerEditor({
 
         <footer className="border-t border-border bg-muted/40 px-5 py-3">
           {confirmingDelete ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium">
-                Delete this banner permanently?
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(false)}
-                  disabled={deleting}
-                  className="rounded-full px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-50"
-                >
-                  Keep
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteConfirm}
-                  disabled={deleting}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-4 py-2 text-xs font-semibold text-white transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
-                >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  {deleting ? "Deleting…" : "Delete"}
-                </button>
-              </div>
-            </div>
+            <ConfirmFooterRow
+              question="Delete this banner permanently?"
+              cancelLabel="Keep"
+              confirmLabel="Delete"
+              pendingLabel="Deleting…"
+              pending={deleting}
+              onCancel={() => setConfirmingDelete(false)}
+              onConfirm={handleDeleteConfirm}
+            />
           ) : (
             <div className="flex items-center justify-between gap-2">
               {!isNew && onDelete ? (
