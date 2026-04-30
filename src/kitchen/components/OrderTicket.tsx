@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Clock, ChefHat, CheckCircle2 } from "lucide-react";
+import { ChevronRight, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  ORDER_STATUS_ICONS,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_PILL,
+} from "@/constants";
 import type { OrderStatus } from "@/types";
 import type { KitchenOrder } from "../useKitchenOrders";
 
@@ -9,28 +14,10 @@ interface OrderTicketProps {
   onAdvance: (id: string, current: OrderStatus) => void;
 }
 
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  pending: "Pending",
-  preparing: "Preparing",
-  ready: "Ready",
-};
-
-const STATUS_ICON: Record<OrderStatus, typeof Clock> = {
-  pending: Clock,
-  preparing: ChefHat,
-  ready: CheckCircle2,
-};
-
 const ADVANCE_LABEL: Record<OrderStatus, string> = {
   pending: "Start preparing",
   preparing: "Mark ready",
   ready: "Mark served",
-};
-
-const STATUS_PILL: Record<OrderStatus, string> = {
-  pending: "bg-warning text-foreground",
-  preparing: "bg-info text-white",
-  ready: "bg-success text-white",
 };
 
 const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
@@ -56,7 +43,7 @@ function useNow(intervalMs: number) {
 
 export function OrderTicket({ order, onAdvance }: OrderTicketProps) {
   const now = useNow(15000);
-  const Icon = STATUS_ICON[order.status];
+  const Icon = ORDER_STATUS_ICONS[order.status];
   const isReady = order.status === "ready";
 
   const ageMs = now - order.createdAt;
@@ -103,11 +90,11 @@ export function OrderTicket({ order, onAdvance }: OrderTicketProps) {
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider",
-              isReady ? "bg-background/15" : STATUS_PILL[order.status]
+              isReady ? "bg-background/15" : ORDER_STATUS_PILL[order.status]
             )}
           >
             <Icon className="h-3 w-3" strokeWidth={2.4} />
-            {STATUS_LABEL[order.status]}
+            {ORDER_STATUS_LABELS[order.status]}
           </span>
           <span
             className={cn(

@@ -1,51 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertCircle,
-  Search,
-  X,
-  Clock,
-  ChefHat,
-  CheckCircle2,
-  Package,
-  Trash2,
-  type LucideIcon,
-} from "lucide-react";
+import { AlertCircle, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/utils";
+import { formatPrice, formatRelative } from "@/utils";
 import {
   useAdminOrders,
   type AdminOrder,
   type AdminOrderStatus,
 } from "../useAdminOrders";
+import {
+  ADMIN_STATUS_ACTIVE,
+  ADMIN_STATUS_ICON,
+  ADMIN_STATUS_LABEL,
+  ADMIN_STATUS_PILL,
+} from "../orderStatus";
 import { OrderDetail } from "./OrderDetail";
 
 type StatusFilter = "all" | "active" | AdminOrderStatus;
-
-const STATUS_LABEL: Record<AdminOrderStatus, string> = {
-  pending: "Pending",
-  preparing: "Preparing",
-  ready: "Ready",
-  served: "Served",
-  cancelled: "Cancelled",
-};
-
-const STATUS_ICON: Record<AdminOrderStatus, LucideIcon> = {
-  pending: Clock,
-  preparing: ChefHat,
-  ready: CheckCircle2,
-  served: Package,
-  cancelled: Trash2,
-};
-
-const STATUS_PILL: Record<AdminOrderStatus, string> = {
-  pending: "bg-warning text-foreground",
-  preparing: "bg-info text-white",
-  ready: "bg-success text-white",
-  served: "bg-muted text-muted-foreground",
-  cancelled: "bg-destructive text-white",
-};
-
-const ACTIVE_STATUSES: AdminOrderStatus[] = ["pending", "preparing", "ready"];
 
 export default function OrdersPage() {
   const { orders, isLoading, error, setStatus } = useAdminOrders();
@@ -86,7 +56,7 @@ export default function OrdersPage() {
     };
     for (const o of orders) {
       out[o.status]++;
-      if (ACTIVE_STATUSES.includes(o.status as AdminOrderStatus)) {
+      if (ADMIN_STATUS_ACTIVE.includes(o.status as AdminOrderStatus)) {
         out.active++;
       }
     }
@@ -96,7 +66,7 @@ export default function OrdersPage() {
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return orders.filter((o) => {
-      if (filter === "active" && !ACTIVE_STATUSES.includes(o.status)) {
+      if (filter === "active" && !ADMIN_STATUS_ACTIVE.includes(o.status)) {
         return false;
       }
       if (
@@ -296,7 +266,7 @@ function OrderRow({
   now: number;
   onClick: () => void;
 }) {
-  const Icon = STATUS_ICON[order.status];
+  const Icon = ADMIN_STATUS_ICON[order.status];
   const itemCount = order.items.reduce((sum, it) => sum + it.quantity, 0);
   const isTerminal =
     order.status === "served" || order.status === "cancelled";
@@ -354,11 +324,11 @@ function OrderRow({
         <span
           className={cn(
             "shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider",
-            STATUS_PILL[order.status]
+            ADMIN_STATUS_PILL[order.status]
           )}
         >
           <Icon className="h-3 w-3" strokeWidth={2.4} />
-          {STATUS_LABEL[order.status]}
+          {ADMIN_STATUS_LABEL[order.status]}
         </span>
       </button>
     </li>
@@ -412,13 +382,3 @@ function EmptyMessage({
   );
 }
 
-function formatRelative(timestamp: number, now: number): string {
-  const seconds = Math.floor((now - timestamp) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}

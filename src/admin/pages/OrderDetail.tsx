@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Trash2, Clock, ChefHat, CheckCircle2, Package } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,13 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/utils";
+import { formatPrice, formatRelative } from "@/utils";
+import {
+  ADMIN_STATUS_ICON,
+  ADMIN_STATUS_LABEL,
+  ADMIN_STATUS_PILL,
+  ADMIN_STATUS_PROGRESSION,
+} from "../orderStatus";
 import type {
   AdminOrder,
   AdminOrderStatus,
@@ -20,48 +26,6 @@ interface OrderDetailProps {
   order: AdminOrder | null;
   onClose: () => void;
   onSetStatus: (id: string, status: AdminOrderStatus) => Promise<void>;
-}
-
-const STATUS_LABEL: Record<AdminOrderStatus, string> = {
-  pending: "Pending",
-  preparing: "Preparing",
-  ready: "Ready",
-  served: "Served",
-  cancelled: "Cancelled",
-};
-
-const STATUS_ICON: Record<AdminOrderStatus, typeof Clock> = {
-  pending: Clock,
-  preparing: ChefHat,
-  ready: CheckCircle2,
-  served: Package,
-  cancelled: Trash2,
-};
-
-const STATUS_PILL: Record<AdminOrderStatus, string> = {
-  pending: "bg-warning text-foreground",
-  preparing: "bg-info text-white",
-  ready: "bg-success text-white",
-  served: "bg-muted text-muted-foreground",
-  cancelled: "bg-destructive text-white",
-};
-
-const PROGRESSION: AdminOrderStatus[] = [
-  "pending",
-  "preparing",
-  "ready",
-  "served",
-];
-
-function formatRelative(timestamp: number, now: number): string {
-  const seconds = Math.floor((now - timestamp) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 export function OrderDetail({
@@ -86,14 +50,14 @@ export function OrderDetail({
   if (!order) return null;
 
   const isTerminal = order.status === "served" || order.status === "cancelled";
-  const Icon = STATUS_ICON[order.status];
+  const Icon = ADMIN_STATUS_ICON[order.status];
 
   const handleStatus = async (next: AdminOrderStatus) => {
     if (next === order.status || pending) return;
     setPending(true);
     try {
       await onSetStatus(order.id, next);
-      toast.success(`Order ${order.id} set to ${STATUS_LABEL[next]}`);
+      toast.success(`Order ${order.id} set to ${ADMIN_STATUS_LABEL[next]}`);
     } finally {
       setPending(false);
     }
@@ -154,11 +118,11 @@ export function OrderDetail({
             <span
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider",
-                STATUS_PILL[order.status]
+                ADMIN_STATUS_PILL[order.status]
               )}
             >
               <Icon className="h-3 w-3" strokeWidth={2.4} />
-              {STATUS_LABEL[order.status]}
+              {ADMIN_STATUS_LABEL[order.status]}
             </span>
           </div>
         </DialogHeader>
@@ -243,7 +207,7 @@ export function OrderDetail({
               Status
             </h3>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {PROGRESSION.map((s) => {
+              {ADMIN_STATUS_PROGRESSION.map((s) => {
                 const isActive = order.status === s;
                 return (
                   <button
@@ -259,7 +223,7 @@ export function OrderDetail({
                         : "border-border bg-card text-foreground/70 hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
                     )}
                   >
-                    {STATUS_LABEL[s]}
+                    {ADMIN_STATUS_LABEL[s]}
                   </button>
                 );
               })}
