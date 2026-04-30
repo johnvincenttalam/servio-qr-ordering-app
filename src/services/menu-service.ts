@@ -1,22 +1,54 @@
-import { MENU_ITEMS } from "@/constants/menu-data";
+import { supabase } from "@/lib/supabase";
 import { CATEGORY_LABELS } from "@/constants";
-import type { MenuItem, MenuCategory } from "@/types";
+import type {
+  MenuItem,
+  MenuCategory,
+  MenuOption,
+  PromoBanner,
+} from "@/types";
 
-const SIMULATED_DELAY = 500;
+interface MenuItemRow {
+  id: string;
+  name: string;
+  price: number | string;
+  image: string;
+  category: MenuCategory;
+  description: string;
+  top_pick: boolean;
+  in_stock: boolean;
+  options: MenuOption[] | null;
+  position: number;
+}
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function rowToItem(row: MenuItemRow): MenuItem {
+  return {
+    id: row.id,
+    name: row.name,
+    price: Number(row.price),
+    image: row.image,
+    category: row.category,
+    description: row.description,
+    topPick: row.top_pick,
+    inStock: row.in_stock,
+    options: row.options ?? undefined,
+  };
 }
 
 export async function fetchMenu(): Promise<MenuItem[]> {
-  await delay(SIMULATED_DELAY);
-  return MENU_ITEMS;
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select("id, name, price, image, category, description, top_pick, in_stock, options, position")
+    .is("archived_at", null)
+    .order("category", { ascending: true })
+    .order("position", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []).map(rowToItem);
 }
 
 export async function fetchCategories(): Promise<
   { id: MenuCategory; label: string }[]
 > {
-  await delay(SIMULATED_DELAY);
   return (Object.entries(CATEGORY_LABELS) as [MenuCategory, string][]).map(
     ([id, label]) => ({ id, label })
   );
@@ -25,6 +57,37 @@ export async function fetchCategories(): Promise<
 export async function fetchMenuItem(
   id: string
 ): Promise<MenuItem | undefined> {
-  await delay(SIMULATED_DELAY);
-  return MENU_ITEMS.find((item) => item.id === id);
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select("id, name, price, image, category, description, top_pick, in_stock, options, position")
+    .eq("id", id)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? rowToItem(data) : undefined;
+}
+
+interface BannerRow {
+  id: string;
+  image: string;
+  title: string | null;
+  subtitle: string | null;
+  position: number;
+}
+
+export async function fetchBanners(): Promise<PromoBanner[]> {
+  const { data, error } = await supabase
+    .from("banners")
+    .select("id, image, title, subtitle, position")
+    .eq("active", true)
+    .order("position", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []).map((row: BannerRow) => ({
+    id: row.id,
+    image: row.image,
+    title: row.title ?? undefined,
+    subtitle: row.subtitle ?? undefined,
+  }));
 }

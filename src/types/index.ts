@@ -57,3 +57,10 @@ export interface Order {
 }
 
 export type MenuCategory = "meals" | "drinks" | "desserts" | "sides";
+
+export interface PromoBanner {
+  id: string;
+  image: string;
+  title?: string;
+  subtitle?: string;
+}

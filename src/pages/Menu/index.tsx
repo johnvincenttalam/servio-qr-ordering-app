@@ -11,7 +11,6 @@ import { PromoCarousel } from "@/components/menu/PromoCarousel";
 import { TopPicksStrip } from "@/components/menu/TopPicksStrip";
 import { MenuSearchBar } from "@/components/menu/MenuSearchBar";
 import { EmptyState } from "@/components/common/EmptyState";
-import { PROMO_BANNERS } from "@/constants/banners";
 import { formatPrice } from "@/utils";
 import type { MenuItem, MenuCategory, CartItemSelection } from "@/types";
 
@@ -22,7 +21,7 @@ export default function MenuPage() {
   const cartTotal = useAppStore((s) => s.getCartTotal());
   const cartCount = useAppStore((s) => s.getCartItemCount());
 
-  const { items, categories, isLoading } = useMenu();
+  const { items, categories, banners, isLoading } = useMenu();
   const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">(
     "all"
   );
@@ -91,7 +90,7 @@ export default function MenuPage() {
 
   return (
     <div className="space-y-3">
-      {showHero && <PromoCarousel banners={PROMO_BANNERS} />}
+      {showHero && banners.length > 0 && <PromoCarousel banners={banners} />}
 
       {showTopPicks && (
         <TopPicksStrip
