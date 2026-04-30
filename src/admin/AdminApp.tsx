@@ -5,7 +5,7 @@ import LoginPage from "./pages/Login";
 import DashboardPage from "./pages/Dashboard";
 import MenuManagerPage from "./pages/MenuManager";
 import OrdersPage from "./pages/Orders";
-import ComingSoon from "./pages/ComingSoon";
+import BannersPage from "./pages/Banners";
 
 export default function AdminApp() {
   return (
@@ -32,10 +32,9 @@ export default function AdminApp() {
         <Route
           path="banners"
           element={
-            <ComingSoon
-              title="Banners"
-              description="Manage the promo banners that show at the top of the customer menu. Drag to reorder, toggle active state, upload new images."
-            />
+            <AuthGuard allowedRoles={["admin"]}>
+              <BannersPage />
+            </AuthGuard>
           }
         />
       </Route>

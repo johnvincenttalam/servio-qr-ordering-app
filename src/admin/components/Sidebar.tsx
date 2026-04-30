@@ -54,12 +54,7 @@ export function Sidebar() {
         <SidebarLink to="/admin" end icon={LayoutDashboard} label="Dashboard" />
         <SidebarLink to="/admin/orders" icon={ListOrdered} label="Orders" />
         <SidebarLink to="/admin/menu" icon={UtensilsCrossed} label="Menu" />
-        <SidebarLink
-          to="/admin/banners"
-          icon={ImageIcon}
-          label="Banners"
-          badge="Soon"
-        />
+        <SidebarLink to="/admin/banners" icon={ImageIcon} label="Banners" />
 
         <div className="my-3 px-3">
           <div className="border-t border-border" />
