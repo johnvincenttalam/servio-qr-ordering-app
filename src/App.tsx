@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import HomePage from "@/pages/Home";
@@ -6,6 +6,8 @@ import MenuPage from "@/pages/Menu";
 import CartPage from "@/pages/Cart";
 import CheckoutPage from "@/pages/Checkout";
 import OrderStatusPage from "@/pages/OrderStatus";
+
+const AdminApp = lazy(() => import("@/admin/AdminApp"));
 
 const SPLASH_MIN_MS = 1800;
 const SPLASH_FADE_MS = 380;
@@ -33,6 +35,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Customer (table-based, no auth) */}
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/menu" element={<MenuPage />} />
@@ -40,6 +43,16 @@ export default function App() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-status" element={<OrderStatusPage />} />
         </Route>
+
+        {/* Admin (lazy chunk, own auth provider) */}
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={null}>
+              <AdminApp />
+            </Suspense>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
