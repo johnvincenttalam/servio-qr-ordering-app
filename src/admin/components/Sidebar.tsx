@@ -58,12 +58,7 @@ export function Sidebar() {
           label="Orders"
           badge="Soon"
         />
-        <SidebarLink
-          to="/admin/menu"
-          icon={UtensilsCrossed}
-          label="Menu"
-          badge="Soon"
-        />
+        <SidebarLink to="/admin/menu" icon={UtensilsCrossed} label="Menu" />
         <SidebarLink
           to="/admin/banners"
           icon={ImageIcon}

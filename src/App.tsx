@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { Toaster } from "@/components/ui/sonner";
 import HomePage from "@/pages/Home";
 import MenuPage from "@/pages/Menu";
 import CartPage from "@/pages/Cart";
@@ -37,6 +38,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Toaster position="top-center" />
         <Routes>
           {/* Customer (table-based, no auth) */}
           <Route element={<AppLayout />}>

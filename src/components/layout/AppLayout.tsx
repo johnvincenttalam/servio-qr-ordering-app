@@ -1,5 +1,4 @@
 import { Outlet } from "react-router-dom";
-import { Toaster } from "@/components/ui/sonner";
 import { Header } from "./Header";
 import { ReloadPrompt } from "@/components/common/ReloadPrompt";
 import { FlyToCartProvider } from "@/components/menu/FlyToCart";
@@ -14,7 +13,6 @@ export function AppLayout() {
             <Outlet />
           </main>
         </div>
-        <Toaster position="top-center" richColors />
         <ReloadPrompt />
       </div>
     </FlyToCartProvider>

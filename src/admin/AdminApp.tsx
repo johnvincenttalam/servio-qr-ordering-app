@@ -3,6 +3,7 @@ import { AuthGuard } from "@/auth/AuthGuard";
 import { AdminLayout } from "./AdminLayout";
 import LoginPage from "./pages/Login";
 import DashboardPage from "./pages/Dashboard";
+import MenuManagerPage from "./pages/MenuManager";
 import ComingSoon from "./pages/ComingSoon";
 
 export default function AdminApp() {
@@ -30,10 +31,9 @@ export default function AdminApp() {
         <Route
           path="menu"
           element={
-            <ComingSoon
-              title="Menu manager"
-              description="Add and edit menu items, manage options, mark dishes 86'd without touching SQL. Up next."
-            />
+            <AuthGuard allowedRoles={["admin"]}>
+              <MenuManagerPage />
+            </AuthGuard>
           }
         />
         <Route

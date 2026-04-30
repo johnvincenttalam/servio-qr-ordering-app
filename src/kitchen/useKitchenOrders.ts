@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { CartItemSelection, OrderStatus } from "@/types";
 
@@ -172,6 +173,7 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
 
       if (updateError) {
         console.error("[kitchen] advance failed:", updateError);
+        toast.error("Couldn't update order — try again");
         // Roll back by refetching
         refetch();
       }
