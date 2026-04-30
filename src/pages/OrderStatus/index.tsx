@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Bell, CheckCircle2, ChevronRight, UtensilsCrossed } from "lucide-react";
+import { Bell, CheckCircle2, ChevronRight, Clock, UtensilsCrossed } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
 import { useOrderStatus } from "@/hooks/useOrderStatus";
+import { useOrderEta } from "@/hooks/useOrderEta";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_DESCRIPTIONS,
@@ -31,6 +32,8 @@ export default function OrderStatusPage() {
 
   const { order, isLoading } = useOrderStatus(effectiveOrderId);
   const [callSheetOpen, setCallSheetOpen] = useState(false);
+  const showEta = order ? order.status !== "ready" : false;
+  const { minutes: etaMinutes } = useOrderEta(showEta);
 
   useEffect(() => {
     if (queryOrderId && queryOrderId !== currentOrderId) {
@@ -138,6 +141,12 @@ export default function OrderStatusPage() {
             >
               {ORDER_STATUS_DESCRIPTIONS[order.status]}
             </p>
+            {showEta && etaMinutes !== null && (
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground">
+                <Clock className="h-3 w-3" strokeWidth={2.4} />
+                Usually ready in ~{etaMinutes} min
+              </p>
+            )}
           </div>
         </div>
       </section>
