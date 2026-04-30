@@ -46,6 +46,9 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
+    --color-success: var(--success);
 }
 
 :root {
@@ -64,7 +67,11 @@
     --muted-foreground: oklch(0.5 0 0);      /* medium gray */
     --accent: oklch(0.96 0 0);
     --accent-foreground: oklch(0.18 0 0);
-    --destructive: oklch(0.62 0.22 25);   /* iOS system red */
+    /* Brand palette — UI status colors */
+    --destructive: #F94949;                /* negative / cancelled */
+    --warning: #FFCC3D;                    /* warning / pending */
+    --info: #2D8EFF;                       /* active / preparing */
+    --success: #13CE66;                    /* positive / ready */
     --border: oklch(0.92 0 0);               /* hairline gray */
     --input: oklch(0.92 0 0);
     --ring: oklch(0.18 0 0);

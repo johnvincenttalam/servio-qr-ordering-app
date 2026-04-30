@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth, type StaffRole } from "./AuthProvider";
@@ -11,11 +12,27 @@ interface AuthGuardProps {
   allowedRoles?: StaffRole[];
 }
 
+const SPINNER_DELAY_MS = 250;
+
 export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const { user, role, isLoading } = useAuth();
   const location = useLocation();
+  const [showSpinner, setShowSpinner] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowSpinner(false);
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setShowSpinner(true),
+      SPINNER_DELAY_MS
+    );
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
 
   if (isLoading) {
+    if (!showSpinner) return null;
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Loader2

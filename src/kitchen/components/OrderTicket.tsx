@@ -27,13 +27,22 @@ const ADVANCE_LABEL: Record<OrderStatus, string> = {
   ready: "Mark served",
 };
 
+const STATUS_PILL: Record<OrderStatus, string> = {
+  pending: "bg-warning text-foreground",
+  preparing: "bg-info text-white",
+  ready: "bg-success text-white",
+};
+
+const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+const URGENT_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
+
 function formatAge(createdAt: number, now: number): string {
   const seconds = Math.floor((now - createdAt) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
-  return `${hours} hr ago`;
+  return `${hours} hr`;
 }
 
 function useNow(intervalMs: number) {
@@ -50,15 +59,32 @@ export function OrderTicket({ order, onAdvance }: OrderTicketProps) {
   const Icon = STATUS_ICON[order.status];
   const isReady = order.status === "ready";
 
+  const ageMs = now - order.createdAt;
+  const isUrgent = !isReady && ageMs >= URGENT_THRESHOLD_MS;
+  const isStale = !isReady && !isUrgent && ageMs >= STALE_THRESHOLD_MS;
+
   return (
     <article
       className={cn(
-        "flex flex-col rounded-3xl border p-5 animate-fade-up",
-        isReady
-          ? "border-foreground bg-foreground text-background"
-          : "border-border bg-card text-foreground"
+        "relative flex flex-col rounded-3xl border bg-card p-5 transition-all animate-fade-up",
+        isReady && "border-foreground bg-foreground text-background",
+        !isReady && isUrgent && "border-destructive border-2",
+        !isReady && isStale && "border-foreground"
       )}
     >
+      {(isUrgent || isStale) && !isReady && (
+        <div
+          className={cn(
+            "absolute -top-2 right-4 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+            isUrgent
+              ? "bg-destructive text-background"
+              : "bg-foreground text-background"
+          )}
+        >
+          {isUrgent ? "Urgent" : "Waiting"}
+        </div>
+      )}
+
       <header className="flex items-start justify-between gap-3">
         <div>
           <p
@@ -77,7 +103,7 @@ export function OrderTicket({ order, onAdvance }: OrderTicketProps) {
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider",
-              isReady ? "bg-background/15" : "bg-muted text-foreground"
+              isReady ? "bg-background/15" : STATUS_PILL[order.status]
             )}
           >
             <Icon className="h-3 w-3" strokeWidth={2.4} />
@@ -85,10 +111,15 @@ export function OrderTicket({ order, onAdvance }: OrderTicketProps) {
           </span>
           <span
             className={cn(
-              "text-[11px] font-medium",
-              isReady ? "text-background/70" : "text-muted-foreground"
+              "flex items-center gap-1 text-[11px] font-semibold tabular-nums",
+              isReady
+                ? "text-background/75"
+                : isUrgent
+                ? "text-destructive"
+                : "text-muted-foreground"
             )}
           >
+            <Clock className="h-3 w-3" strokeWidth={2.2} />
             {formatAge(order.createdAt, now)}
           </span>
         </div>
