@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { persistedLocalStorage } from "@/lib/persistedStorage";
 import type { CartItem, CartItemSelection } from "@/types";
 
 interface AppState {
@@ -106,8 +107,12 @@ export const useAppStore = create<AppState>()(
         get().cart.reduce((sum, item) => sum + item.quantity, 0),
     }),
     {
-      name: "servio-session-v2",
-      storage: createJSONStorage(() => sessionStorage),
+      // Bumped from v2 (sessionStorage) to v3 (localStorage with sliding
+      // TTL) so the active order survives a tab close — clicking a push
+      // notification on a fresh tab can now rehydrate the order id and
+      // table id from disk instead of falling back to the empty state.
+      name: "servio-session-v3",
+      storage: createJSONStorage(() => persistedLocalStorage),
     }
   )
 );
