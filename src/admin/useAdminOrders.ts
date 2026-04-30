@@ -157,6 +157,18 @@ export function useAdminOrders(): UseAdminOrdersReturn {
         console.error("[admin/orders] status update failed:", updateError);
         toast.error("Couldn't update order status");
         await refetch();
+        return;
+      }
+
+      // Fire-and-forget push when status hits 'ready'.
+      if (status === "ready") {
+        supabase.functions
+          .invoke("send-order-push", { body: { order_id: id } })
+          .then(({ error: pushError }) => {
+            if (pushError) {
+              console.warn("[admin/orders] push send failed:", pushError);
+            }
+          });
       }
     },
     [refetch]

@@ -1,5 +1,12 @@
-import { ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, BellOff, Check, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import {
+  pushPermission,
+  pushSupported,
+  subscribeToOrderPush,
+} from "@/lib/push";
 
 interface OrderSuccessModalProps {
   open: boolean;
@@ -7,11 +14,52 @@ interface OrderSuccessModalProps {
   onView: () => void;
 }
 
+type NotifyState =
+  | "idle" // hasn't asked
+  | "subscribing" // permission/save in flight
+  | "subscribed" // success
+  | "denied" // user blocked
+  | "unavailable"; // browser doesn't support OR vapid key missing
+
 export function OrderSuccessModal({
   open,
   orderId,
   onView,
 }: OrderSuccessModalProps) {
+  const [notify, setNotify] = useState<NotifyState>("idle");
+
+  // Initialise the notify state when the modal opens
+  useEffect(() => {
+    if (!open) return;
+    if (!pushSupported()) {
+      setNotify("unavailable");
+      return;
+    }
+    if (!import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+      setNotify("unavailable");
+      return;
+    }
+    const perm = pushPermission();
+    if (perm === "denied") setNotify("denied");
+    else setNotify("idle");
+  }, [open]);
+
+  const handleSubscribe = async () => {
+    if (!orderId) return;
+    setNotify("subscribing");
+    const result = await subscribeToOrderPush(orderId);
+    if (result.ok) {
+      setNotify("subscribed");
+    } else if (result.reason === "permission-denied") {
+      setNotify("denied");
+    } else if (result.reason === "unsupported" || result.reason === "missing-vapid") {
+      setNotify("unavailable");
+    } else {
+      setNotify("idle");
+      console.error("[push] subscribe failed:", result.message);
+    }
+  };
+
   return (
     <Dialog
       open={open}
@@ -63,7 +111,9 @@ export function OrderSuccessModal({
             {orderId ? (
               <>
                 Order{" "}
-                <span className="font-semibold text-foreground">#{orderId}</span>{" "}
+                <span className="font-semibold text-foreground">
+                  #{orderId}
+                </span>{" "}
                 is on its way to the kitchen.
               </>
             ) : (
@@ -79,8 +129,64 @@ export function OrderSuccessModal({
             Track Order
             <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </button>
+
+          <NotifyOption
+            state={notify}
+            onSubscribe={handleSubscribe}
+          />
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function NotifyOption({
+  state,
+  onSubscribe,
+}: {
+  state: NotifyState;
+  onSubscribe: () => void;
+}) {
+  if (state === "unavailable") return null;
+
+  if (state === "subscribed") {
+    return (
+      <p
+        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-success animate-fade-up"
+        style={{ animationDelay: "1150ms" }}
+      >
+        <Check className="h-3.5 w-3.5" strokeWidth={2.4} />
+        We&apos;ll notify you when it&apos;s ready
+      </p>
+    );
+  }
+
+  if (state === "denied") {
+    return (
+      <p
+        className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground animate-fade-up"
+        style={{ animationDelay: "1150ms" }}
+      >
+        <BellOff className="h-3.5 w-3.5" strokeWidth={2.2} />
+        Notifications blocked — enable in browser settings to opt in
+      </p>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onSubscribe}
+      disabled={state === "subscribing"}
+      className={cn(
+        "mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95 animate-fade-up",
+        "text-foreground/70 hover:bg-muted hover:text-foreground",
+        "disabled:cursor-not-allowed disabled:opacity-50"
+      )}
+      style={{ animationDelay: "1150ms" }}
+    >
+      <Bell className="h-3.5 w-3.5" strokeWidth={2.2} />
+      {state === "subscribing" ? "Setting up…" : "Notify me when ready"}
+    </button>
   );
 }

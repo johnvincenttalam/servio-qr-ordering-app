@@ -9,16 +9,27 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png"],
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
+      },
+      // Build + serve the custom SW in dev so push subscribe works locally.
+      devOptions: {
+        enabled: true,
+        type: "module",
+      },
       manifest: {
         name: "SERVIO",
         short_name: "SERVIO",
         description: "QR-Based Smart Restaurant Ordering",
         start_url: "/",
         display: "standalone",
-        background_color: "#ffffff",
-        theme_color: "#1E3A8A",
+        background_color: "#fafaf7",
+        theme_color: "#fafaf7",
         icons: [
           {
             src: "/icons/icon-192.png",
@@ -30,21 +41,6 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",
-          },
-        ],
-      },
-      workbox: {
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/images\.unsplash\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "menu-images",
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7,
-              },
-            },
           },
         ],
       },

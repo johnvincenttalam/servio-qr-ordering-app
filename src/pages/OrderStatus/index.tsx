@@ -1,4 +1,5 @@
-import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, UtensilsCrossed } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
@@ -15,16 +16,45 @@ const STEPS: OrderStatus[] = ["pending", "preparing", "ready"];
 
 export default function OrderStatusPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const tableId = useAppStore((s) => s.tableId);
   const currentOrderId = useAppStore((s) => s.currentOrderId);
-  const { order, isLoading } = useOrderStatus(currentOrderId);
+  const setTableId = useAppStore((s) => s.setTableId);
+  const setCurrentOrderId = useAppStore((s) => s.setCurrentOrderId);
 
-  if (!tableId) {
-    navigate("/", { replace: true });
-    return null;
-  }
+  // A push-notification click opens the page with ?order=ORD-XYZ. If the new
+  // tab has empty sessionStorage (the original ordering tab was closed), we
+  // hydrate the store from the query param so the page can render the order.
+  const queryOrderId = searchParams.get("order");
+  const effectiveOrderId = queryOrderId ?? currentOrderId;
 
-  if (!currentOrderId) {
+  const { order, isLoading } = useOrderStatus(effectiveOrderId);
+
+  useEffect(() => {
+    if (queryOrderId && queryOrderId !== currentOrderId) {
+      setCurrentOrderId(queryOrderId);
+    }
+  }, [queryOrderId, currentOrderId, setCurrentOrderId]);
+
+  // Once the order is fetched, mirror its table id into the store so the rest
+  // of the app (header table chip, "Order Again" → menu) stays consistent.
+  useEffect(() => {
+    if (order && !tableId) {
+      setTableId(order.tableId);
+    }
+  }, [order, tableId, setTableId]);
+
+  // Only redirect home if we have nothing to render — no table, no order id,
+  // no query hint. Otherwise let the loading/empty states handle it.
+  useEffect(() => {
+    if (!tableId && !effectiveOrderId) {
+      navigate("/", { replace: true });
+    }
+  }, [tableId, effectiveOrderId, navigate]);
+
+  if (!tableId && !effectiveOrderId) return null;
+
+  if (!effectiveOrderId) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-border bg-muted">

@@ -176,6 +176,19 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
         toast.error("Couldn't update order — try again");
         // Roll back by refetching
         refetch();
+        return;
+      }
+
+      // Fire-and-forget push notification when an order becomes ready.
+      // Errors are logged but don't block the UI flow.
+      if (next === "ready") {
+        supabase.functions
+          .invoke("send-order-push", { body: { order_id: id } })
+          .then(({ error: pushError }) => {
+            if (pushError) {
+              console.warn("[kitchen] push send failed:", pushError);
+            }
+          });
       }
     },
     [refetch]
