@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Utensils, AlertCircle } from "lucide-react";
-import { useAuth } from "../AuthProvider";
+import { useAuth } from "@/auth/AuthProvider";
 import { Input } from "@/components/ui/input";
 
 interface LocationState {

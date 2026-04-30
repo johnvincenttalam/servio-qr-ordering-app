@@ -8,6 +8,7 @@ import CheckoutPage from "@/pages/Checkout";
 import OrderStatusPage from "@/pages/OrderStatus";
 
 const AdminApp = lazy(() => import("@/admin/AdminApp"));
+const KitchenApp = lazy(() => import("@/kitchen/KitchenApp"));
 
 const SPLASH_MIN_MS = 1800;
 const SPLASH_FADE_MS = 380;
@@ -50,6 +51,16 @@ export default function App() {
           element={
             <Suspense fallback={null}>
               <AdminApp />
+            </Suspense>
+          }
+        />
+
+        {/* Kitchen display (lazy chunk, shares the same Supabase session) */}
+        <Route
+          path="/kitchen/*"
+          element={
+            <Suspense fallback={null}>
+              <KitchenApp />
             </Suspense>
           }
         />

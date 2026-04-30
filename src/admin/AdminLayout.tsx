@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { LogOut, Utensils } from "lucide-react";
-import { useAuth } from "./AuthProvider";
+import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 
 export function AdminLayout() {
@@ -34,6 +34,7 @@ export function AdminLayout() {
 
           <nav className="hidden items-center gap-1 sm:flex">
             <AdminNavLink to="/admin">Dashboard</AdminNavLink>
+            <AdminNavLink to="/kitchen">Kitchen</AdminNavLink>
           </nav>
 
           <div className="flex items-center gap-3">

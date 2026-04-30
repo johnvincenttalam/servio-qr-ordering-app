@@ -1,5 +1,12 @@
-import { ChefHat, ListOrdered, UtensilsCrossed, Image as ImageIcon } from "lucide-react";
-import { useAuth } from "../AuthProvider";
+import { Link } from "react-router-dom";
+import {
+  ChefHat,
+  ListOrdered,
+  UtensilsCrossed,
+  Image as ImageIcon,
+  ChevronRight,
+} from "lucide-react";
+import { useAuth } from "@/auth/AuthProvider";
 
 export default function DashboardPage() {
   const { user, role } = useAuth();
@@ -20,22 +27,24 @@ export default function DashboardPage() {
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <StatCard
+        <ActionCard
+          to="/kitchen"
           icon={ChefHat}
           title="Kitchen display"
-          subtitle="Coming soon — live order tickets"
+          subtitle="Live order tickets, advance status with one tap"
+          ready
         />
-        <StatCard
+        <ActionCard
           icon={ListOrdered}
           title="Orders"
           subtitle="Coming soon — full order history"
         />
-        <StatCard
+        <ActionCard
           icon={UtensilsCrossed}
           title="Menu manager"
           subtitle="Coming soon — add, edit, mark items 86'd"
         />
-        <StatCard
+        <ActionCard
           icon={ImageIcon}
           title="Banners"
           subtitle="Coming soon — manage promo banners"
@@ -45,24 +54,46 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({
+function ActionCard({
+  to,
   icon: Icon,
   title,
   subtitle,
+  ready = false,
 }: {
+  to?: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   title: string;
   subtitle: string;
+  ready?: boolean;
 }) {
-  return (
-    <div className="flex items-start gap-3 rounded-3xl border border-border bg-card p-4">
+  const inner = (
+    <div className="flex items-start gap-3 rounded-3xl border border-border bg-card p-4 transition-all">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-muted">
         <Icon className="h-5 w-5" strokeWidth={2} />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <h3 className="text-sm font-semibold leading-tight">{title}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
       </div>
+      {ready && (
+        <ChevronRight
+          className="mt-1 h-4 w-4 text-muted-foreground"
+          strokeWidth={2.2}
+        />
+      )}
     </div>
   );
+
+  if (to) {
+    return (
+      <Link
+        to={to}
+        className="block transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return <div className="opacity-70">{inner}</div>;
 }
