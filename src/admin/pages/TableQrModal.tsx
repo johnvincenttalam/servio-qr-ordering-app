@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-  AlertCircle,
   Download,
   Printer,
   RotateCw,
@@ -210,49 +209,67 @@ export function TableQrModal({
           <DialogTitle className="text-xl font-bold leading-tight">
             {table ? `Table ${table.id}` : "—"}
           </DialogTitle>
+          {table && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Print and stick this on the table — guests scan it to start an
+              order.
+            </p>
+          )}
         </DialogHeader>
 
         {table && (
-          <div className="flex flex-col items-center gap-4 px-5 py-6">
-            <div className="flex w-full max-w-[280px] flex-col items-center gap-3 rounded-3xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-foreground text-background">
-                  <Utensils className="h-3 w-3" strokeWidth={2.6} />
+          <div className="flex flex-col items-center gap-4 px-5 py-5">
+            {/*
+              Sticker preview. Aspect ratio matches the printed output
+              (80 × 110mm = 8 / 11) so what the operator sees here is
+              what comes out of the printer.
+            */}
+            <div className="flex w-[220px] flex-col items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-md shadow-black/5 aspect-[8/11]">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+                <span className="flex h-4 w-4 items-center justify-center rounded-md bg-foreground text-background">
+                  <Utensils className="h-2.5 w-2.5" strokeWidth={2.6} />
                 </span>
                 SERVIO
               </div>
 
-              <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-border bg-background p-3">
+              <div className="flex aspect-square w-[160px] items-center justify-center">
                 {svgMarkup ? (
                   <div
-                    className="h-full w-full"
-                    // We trust this output: it's generated client-side
-                    // by the qrcode lib from a URL we built ourselves.
+                    // The qrcode lib bakes width/height attributes onto
+                    // the <svg> root. Force descendant svg to fill the
+                    // 160×160 slot so the QR doesn't overflow at its
+                    // intrinsic 320×320 size.
+                    className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
                     dangerouslySetInnerHTML={{ __html: svgMarkup }}
                   />
                 ) : error ? (
-                  <p className="text-xs text-destructive">{error}</p>
+                  <p className="text-[10px] text-destructive">{error}</p>
                 ) : (
-                  <div className="h-12 w-12 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
+                  <div className="h-10 w-10 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
                 )}
               </div>
 
-              <div>
+              <div className="text-center">
                 <p className="text-2xl font-extrabold leading-none tracking-tight">
                   {table.id}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {table.label}
+                {!isGenericLabel(table) && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {table.label}
+                  </p>
+                )}
+                <p className="mt-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground/80">
+                  Scan to order
                 </p>
               </div>
             </div>
 
-            <div className="flex w-full items-center gap-2">
+            <div className="grid w-full grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handlePrint}
                 disabled={!svgMarkup}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-foreground px-4 py-2.5 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-foreground px-4 py-2.5 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
               >
                 <Printer className="h-3.5 w-3.5" strokeWidth={2.4} />
                 Print sticker
@@ -264,22 +281,30 @@ export function TableQrModal({
                 className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-card px-4 py-2.5 text-xs font-semibold text-foreground/80 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95 disabled:opacity-50"
               >
                 <Download className="h-3.5 w-3.5" strokeWidth={2.4} />
-                SVG
+                Download SVG
               </button>
             </div>
 
-            {!table.qrToken && (
-              <div className="flex w-full items-start gap-2 rounded-2xl border border-warning/40 bg-warning/15 p-3 text-[11px] text-foreground">
-                <AlertCircle
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                  strokeWidth={2.4}
-                />
-                <p>
-                  This table has no QR token yet — the URL is guessable.
-                  Generate one below to lock this sticker to a fresh code.
-                </p>
+            <div className="flex w-full flex-col items-center gap-1.5 text-center">
+              <p className="font-mono text-[10px] text-muted-foreground/80 break-all">
+                {previewEncodedUrl(table)}
+              </p>
+              <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
+                <span>
+                  {table.qrToken
+                    ? "Trouble with the QR?"
+                    : "No token yet — the URL is guessable."}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRotate(true)}
+                  className="inline-flex items-center gap-1 font-semibold text-destructive/80 underline-offset-2 hover:text-destructive hover:underline"
+                >
+                  <RotateCw className="h-3 w-3" strokeWidth={2.4} />
+                  {table.qrToken ? "Rotate token" : "Generate token"}
+                </button>
               </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -288,9 +313,10 @@ export function TableQrModal({
             <ConfirmFooterRow
               question={
                 <>
-                  Rotate token for{" "}
-                  <span className="font-bold">{table.id}</span>? Existing
-                  printed stickers will stop working.
+                  {table.qrToken ? "Rotate token for " : "Generate token for "}
+                  <span className="font-bold">{table.id}</span>?
+                  {table.qrToken &&
+                    " The current printed sticker will stop working."}
                 </>
               }
               cancelLabel="Cancel"
@@ -301,15 +327,7 @@ export function TableQrModal({
               onConfirm={handleRotate}
             />
           ) : (
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmingRotate(true)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
-              >
-                <RotateCw className="h-3.5 w-3.5" strokeWidth={2.2} />
-                {table?.qrToken ? "Rotate token" : "Generate token"}
-              </button>
+            <div className="flex items-center justify-end">
               <button
                 type="button"
                 onClick={onClose}
@@ -323,4 +341,33 @@ export function TableQrModal({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * "T1" + label "Table 1" is redundant — hide the label when it's just
+ * the auto-generated default. Anything custom ("Booth 3", "Bar 2") still
+ * renders so the operator sees the descriptor on the preview.
+ */
+function isGenericLabel(table: AdminTable): boolean {
+  if (!table.label) return true;
+  const numericTail = table.id.replace(/^[A-Z]+/i, "");
+  const candidates = [
+    `Table ${numericTail}`,
+    `Table ${table.id}`,
+    table.id,
+  ].map((s) => s.toLowerCase().trim());
+  return candidates.includes(table.label.toLowerCase().trim());
+}
+
+/**
+ * Truncated URL preview for the modal — the operator sees enough to
+ * verify the host and table id without the whole hex token taking up
+ * three lines. Falls back to "no token" when null.
+ */
+function previewEncodedUrl(table: AdminTable): string {
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "";
+  if (!table.qrToken) return `${origin}/?t=${table.id}`;
+  const tokenPreview = `${table.qrToken.slice(0, 6)}…`;
+  return `${origin}/?t=${table.id}&k=${tokenPreview}`;
 }
