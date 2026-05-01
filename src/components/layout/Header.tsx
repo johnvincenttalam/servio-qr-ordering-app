@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { History as HistoryIcon, ShoppingCart, Utensils } from "lucide-react";
+import {
+  Bell,
+  History as HistoryIcon,
+  ShoppingCart,
+  Utensils,
+} from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { getOrderHistory } from "@/lib/orderHistory";
+import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
 
 export function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const tableId = useAppStore((s) => s.tableId);
+  const currentOrderId = useAppStore((s) => s.currentOrderId);
   const itemCount = useAppStore((s) => s.getCartItemCount());
+  const [waiterOpen, setWaiterOpen] = useState(false);
 
   // History button only renders when there's at least one past order
   // on this device — keeps the header uncluttered for first-time
@@ -23,7 +31,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card text-foreground">
-      <div className="mx-auto flex max-w-md items-center justify-between gap-2 px-4 py-3 sm:max-w-lg lg:max-w-xl">
+      <div className="mx-auto flex max-w-md items-center justify-between gap-2 px-4 py-3 sm:max-w-2xl lg:max-w-3xl">
         <Link to="/menu" className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-foreground text-background">
             <Utensils className="h-4 w-4" strokeWidth={2.5} />
@@ -41,6 +49,20 @@ export function Header() {
         </Link>
 
         <div className="flex shrink-0 items-center -mr-1">
+          {/* Bell only shows once we have a tableId — without one, the
+              call request would have nothing to associate with. The
+              "Request bill" choice surfaces only when an active order
+              exists; otherwise it's a service-only call. */}
+          {tableId && (
+            <button
+              onClick={() => setWaiterOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
+              aria-label="Call waiter"
+              title="Call waiter"
+            >
+              <Bell className="h-5 w-5" strokeWidth={2.2} />
+            </button>
+          )}
           {hasHistory && (
             <button
               onClick={() => navigate("/history")}
@@ -69,6 +91,14 @@ export function Header() {
           </button>
         </div>
       </div>
+
+      <WaiterCallSheet
+        open={waiterOpen}
+        onClose={() => setWaiterOpen(false)}
+        tableId={tableId}
+        orderId={currentOrderId}
+        showBill={Boolean(currentOrderId)}
+      />
     </header>
   );
 }

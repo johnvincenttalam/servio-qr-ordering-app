@@ -107,16 +107,27 @@ export function MenuItemModal({
           )}
         />
         {/*
-          Bottom-sheet layout: pinned to the viewport bottom on mobile,
-          centered with a max width on tablet/desktop. Slides up from
-          below on open and back down on close instead of the centered
-          zoom transition the default DialogContent uses.
+          Responsive: bottom sheet on mobile (slides up from the
+          viewport edge, only top corners rounded) and a centered
+          modal on md+ (zoom-in, all corners rounded, capped width
+          with breathing room on a wide screen). The reset of the
+          mobile-only "bottom-0 + slide-in-from-bottom" classes back
+          to neutral happens at the md breakpoint.
         */}
         <DialogPrimitive.Popup
           className={cn(
-            "fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10 outline-none",
+            // Shared
+            "fixed z-50 flex max-h-[92dvh] flex-col overflow-hidden bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10 outline-none",
+            // Mobile / small tablet: bottom sheet
+            "inset-x-0 bottom-0 mx-auto w-full max-w-md rounded-t-3xl",
             "duration-300 data-open:animate-in data-open:slide-in-from-bottom",
-            "data-closed:animate-out data-closed:slide-out-to-bottom"
+            "data-closed:animate-out data-closed:slide-out-to-bottom",
+            // Desktop: centered modal — pin to viewport center, all
+            // corners rounded, slightly wider, zoom animation that
+            // overrides the slide on this breakpoint.
+            "md:inset-auto md:bottom-auto md:left-1/2 md:top-1/2 md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-3xl",
+            "md:data-open:slide-in-from-bottom-0 md:data-open:zoom-in-95",
+            "md:data-closed:slide-out-to-bottom-0 md:data-closed:zoom-out-95"
           )}
         >
           <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-muted">

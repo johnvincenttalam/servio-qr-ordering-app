@@ -74,7 +74,7 @@ export function OrderSuccessModal({
         <div className="flex flex-col items-center text-center">
           <div className="animate-check-pulse">
             <svg
-              className="h-20 w-20 text-foreground"
+              className="h-20 w-20 text-success"
               viewBox="0 0 52 52"
               fill="none"
               aria-hidden="true"

@@ -1,12 +1,15 @@
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { formatPrice } from "@/utils";
+import { cn } from "@/lib/utils";
 
 interface StickyCartBarProps {
   onClick: () => void;
 }
 
 const MAX_THUMBNAILS = 3;
+const ANIMATE_MS = 540;
 
 /**
  * Sticky bottom bar that shows on the menu page when the cart isn't
@@ -19,11 +22,18 @@ export function StickyCartBar({ onClick }: StickyCartBarProps) {
   const cartTotal = useAppStore((s) => s.getCartTotal());
   const cartCount = useAppStore((s) => s.getCartItemCount());
 
-  if (cartCount === 0) return null;
+  // Track which itemIds were "freshly added" in the latest render so
+  // only those thumbnails play the drop-in animation. Without this,
+  // every thumbnail would re-animate whenever any cart line updates
+  // (e.g. quantity change), which would feel twitchy.
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set());
 
   // Dedupe thumbnails by itemId so 5x of the same drink doesn't fill
   // the stack with identical photos. First occurrence wins (visually
-  // matches the order things were added in).
+  // matches the order things were added in). Computed even when the
+  // cart is empty (visibleThumbs becomes []) so hooks below stay
+  // unconditional and the rules-of-hooks order is preserved.
   const seen = new Set<string>();
   const uniqueItems = cart.filter((line) => {
     if (seen.has(line.itemId)) return false;
@@ -33,10 +43,36 @@ export function StickyCartBar({ onClick }: StickyCartBarProps) {
   const visibleThumbs = uniqueItems.slice(0, MAX_THUMBNAILS);
   const overflow = uniqueItems.length - visibleThumbs.length;
 
+  // Detect fresh items every render. Effect body is idempotent — when
+  // no new ids are detected it just syncs the seen set and bails, so
+  // running on every render is fine. Setting state only happens for
+  // genuine arrivals.
+  const visibleKey = visibleThumbs.map((t) => t.itemId).join("|");
+  useEffect(() => {
+    const visibleIds = new Set(visibleThumbs.map((t) => t.itemId));
+    const fresh = [...visibleIds].filter(
+      (id) => !seenIdsRef.current.has(id)
+    );
+    seenIdsRef.current = visibleIds;
+    if (fresh.length === 0) return;
+    setAnimatingIds(new Set(fresh));
+    const timer = window.setTimeout(
+      () => setAnimatingIds(new Set()),
+      ANIMATE_MS
+    );
+    return () => window.clearTimeout(timer);
+    // visibleKey is the serialised version of visibleThumbs ids — gives
+    // a stable dep that only changes when the unique-visible set
+    // actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleKey]);
+
+  if (cartCount === 0) return null;
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50">
       <div
-        className="mx-auto max-w-md p-4 sm:max-w-lg lg:max-w-xl"
+        className="mx-auto max-w-md p-4 sm:max-w-2xl lg:max-w-3xl"
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <button
@@ -51,20 +87,26 @@ export function StickyCartBar({ onClick }: StickyCartBarProps) {
               between siblings collapse them into the overlap pattern. */}
           <span className="flex shrink-0 items-center">
             <span className="flex items-center -space-x-2.5">
-              {visibleThumbs.map((line) => (
-                <span
-                  key={line.lineId}
-                  className="relative h-10 w-10 overflow-hidden rounded-full ring-2 ring-foreground"
-                >
-                  <img
-                    src={line.image}
-                    alt=""
-                    aria-hidden
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                </span>
-              ))}
+              {visibleThumbs.map((line) => {
+                const isFresh = animatingIds.has(line.itemId);
+                return (
+                  <span
+                    key={line.itemId}
+                    className={cn(
+                      "relative h-10 w-10 overflow-hidden rounded-full ring-2 ring-foreground",
+                      isFresh && "animate-cart-thumb"
+                    )}
+                  >
+                    <img
+                      src={line.image}
+                      alt=""
+                      aria-hidden
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </span>
+                );
+              })}
               {overflow > 0 && (
                 <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-warning text-xs font-extrabold text-foreground ring-2 ring-foreground">
                   +{overflow}

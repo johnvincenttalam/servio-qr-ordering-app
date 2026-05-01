@@ -219,3 +219,35 @@
 .animate-count-bump {
   animation: count-bump 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* Cart-thumb entrance — "stamp" animation. The thumb starts large,
+   faded, and crooked, slams down past resting size with a slight
+   over-compression, bounces back, and settles square. Reads as the
+   item being stamped onto the tab rather than mechanically appearing. */
+@keyframes cart-thumb-stamp {
+  0% {
+    transform: scale(1.5) rotate(-6deg);
+    opacity: 0;
+    filter: blur(2px);
+  }
+  45% {
+    transform: scale(0.92) rotate(2deg);
+    opacity: 1;
+    filter: blur(0);
+  }
+  68% {
+    transform: scale(1.05) rotate(-1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+.animate-cart-thumb {
+  animation: cart-thumb-stamp 480ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cart-thumb {
+    animation: pop-in 200ms ease-out;
+  }
+}

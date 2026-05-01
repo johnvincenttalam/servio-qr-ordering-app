@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, UtensilsCrossed, Search } from "lucide-react";
+import { UtensilsCrossed, Search } from "lucide-react";
 import { useMenu } from "@/hooks/useMenu";
 import { useAppStore } from "@/store/useAppStore";
 import { CategoryTabs } from "@/components/menu/CategoryTabs";
@@ -12,16 +12,13 @@ import { Greeting } from "@/components/menu/Greeting";
 import { TopPicksStrip } from "@/components/menu/TopPicksStrip";
 import { MenuSearchBar } from "@/components/menu/MenuSearchBar";
 import { EmptyState } from "@/components/common/EmptyState";
-import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
 import { StickyCartBar } from "@/components/cart/StickyCartBar";
-import { cn } from "@/lib/utils";
 import type { MenuItem, MenuCategory, CartItemSelection } from "@/types";
 
 export default function MenuPage() {
   const navigate = useNavigate();
   const tableId = useAppStore((s) => s.tableId);
   const addToCart = useAppStore((s) => s.addToCart);
-  const cartCount = useAppStore((s) => s.getCartItemCount());
 
   const { items, categories, banners, isLoading } = useMenu();
   const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">(
@@ -29,7 +26,6 @@ export default function MenuPage() {
   );
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [callSheetOpen, setCallSheetOpen] = useState(false);
 
   const topPicks = useMemo(
     () => items.filter((item) => item.topPick),
@@ -137,25 +133,6 @@ export default function MenuPage() {
         open={selectedItem !== null}
         onClose={() => setSelectedItem(null)}
         onAddToCart={handleAddToCart}
-      />
-
-      <button
-        type="button"
-        onClick={() => setCallSheetOpen(true)}
-        aria-label="Call waiter"
-        className={cn(
-          "fixed right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md shadow-black/5 transition-all hover:scale-105 active:scale-95",
-          cartCount > 0 ? "bottom-24" : "bottom-4"
-        )}
-      >
-        <Bell className="h-5 w-5" strokeWidth={2.2} />
-      </button>
-
-      <WaiterCallSheet
-        open={callSheetOpen}
-        onClose={() => setCallSheetOpen(false)}
-        tableId={tableId}
-        showBill={false}
       />
 
       <StickyCartBar onClick={() => navigate("/cart")} />

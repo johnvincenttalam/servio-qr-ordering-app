@@ -207,21 +207,26 @@ export function OrderDetail({
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Status
             </h3>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div
+              role="tablist"
+              aria-label="Order status"
+              className="mt-2 flex rounded-full bg-muted p-1"
+            >
               {ADMIN_STATUS_PROGRESSION.map((s) => {
                 const isActive = order.status === s;
                 return (
                   <button
                     key={s}
                     type="button"
+                    role="tab"
                     onClick={() => handleStatus(s)}
-                    aria-pressed={isActive}
+                    aria-selected={isActive}
                     disabled={pending || isActive}
                     className={cn(
-                      "rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors active:scale-95 disabled:cursor-not-allowed",
+                      "flex-1 rounded-full px-2 py-2 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed",
                       isActive
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border bg-card text-foreground/70 hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
+                        ? "bg-foreground text-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground disabled:opacity-50"
                     )}
                   >
                     {ADMIN_STATUS_LABEL[s]}

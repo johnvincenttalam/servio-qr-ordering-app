@@ -14,7 +14,7 @@ export function CartFooter({ total, itemCount }: CartFooterProps) {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
-      <div className="mx-auto max-w-md sm:max-w-lg lg:max-w-xl border-t border-border bg-background p-4 pointer-events-auto">
+      <div className="mx-auto max-w-md sm:max-w-2xl lg:max-w-3xl border-t border-border bg-background p-4 pointer-events-auto">
         <div className="mb-3 flex items-baseline justify-between">
           <span className="text-base font-medium text-muted-foreground">
             {itemCount} {itemCount === 1 ? "item" : "items"}

@@ -231,7 +231,7 @@ export default function HistoryPage() {
           reorder doesn't strand the customer without a way back. */}
       {cartCount > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
-          <div className="mx-auto max-w-md sm:max-w-lg lg:max-w-xl p-4">
+          <div className="mx-auto max-w-md sm:max-w-2xl lg:max-w-3xl p-4">
             <button
               onClick={() => navigate("/cart")}
               className="pointer-events-auto group flex w-full items-center justify-between rounded-full bg-foreground px-5 py-4 text-background transition-transform hover:scale-[1.01] active:scale-[0.98] animate-fade-up"

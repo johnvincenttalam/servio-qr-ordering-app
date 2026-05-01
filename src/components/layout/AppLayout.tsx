@@ -8,7 +8,7 @@ export function AppLayout() {
     <FlyToCartProvider>
       <div className="min-h-dvh bg-background">
         <Header />
-        <div className="mx-auto max-w-md sm:max-w-lg lg:max-w-xl">
+        <div className="mx-auto max-w-md sm:max-w-2xl lg:max-w-3xl">
           <main className="px-4 pb-36 pt-4">
             <Outlet />
           </main>
