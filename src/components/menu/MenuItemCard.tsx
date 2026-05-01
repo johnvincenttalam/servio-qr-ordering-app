@@ -26,15 +26,29 @@ export function MenuItemCard({ item, onSelect, onAdd, style }: MenuItemCardProps
     onAdd(item);
   };
 
+  // Outer wrapper is a div, not a button, so the inner "+" can be a
+  // proper <button> without illegal nesting. Tapping the "+" no longer
+  // focuses the parent — which, before this refactor, was triggering
+  // the browser's "scroll-to-focused-element" behaviour and yanking
+  // the page upward whenever an Add hit a card mid-scroll.
+  const handleSelect = () => onSelect(item);
+
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(item)}
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={handleSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleSelect();
+        }
+      }}
       aria-label={
         outOfStock ? `${item.name} (sold out)` : `View ${item.name}`
       }
       style={style}
-      className="group/card relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/30 active:scale-[0.98] animate-fade-up"
+      className="group/card relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-border bg-card text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/30 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/40 focus-visible:outline-offset-2 animate-fade-up"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         <img
@@ -76,27 +90,19 @@ export function MenuItemCard({ item, onSelect, onAdd, style }: MenuItemCardProps
           )}
         </div>
         {!outOfStock && (
-          <span
-            role="button"
+          <button
+            type="button"
             aria-label={`Add ${item.name} to cart`}
-            tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
               handleAdd();
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                handleAdd();
-              }
-            }}
-            className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-all duration-200 hover:scale-110 active:scale-95"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-all duration-200 hover:scale-110 active:scale-95"
           >
             <Plus className="h-4 w-4" strokeWidth={2.5} />
-          </span>
+          </button>
         )}
       </div>
-    </button>
+    </article>
   );
 }

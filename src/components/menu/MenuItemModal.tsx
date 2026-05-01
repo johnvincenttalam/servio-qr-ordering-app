@@ -1,14 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Minus, Plus } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Minus, Plus, X } from "lucide-react";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/utils";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useFlyToCart } from "./FlyToCart";
 import type { MenuItem, CartItemSelection } from "@/types";
 
@@ -35,6 +30,10 @@ export function MenuItemModal({
   >({});
   const imgRef = useRef<HTMLImageElement>(null);
   const { flyToCart } = useFlyToCart();
+
+  // Replaces base-ui Dialog's scroll lock — see useBodyScrollLock for
+  // the rationale. Active whenever the sheet is open.
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (item) {
@@ -87,14 +86,39 @@ export function MenuItemModal({
   };
 
   return (
-    <Dialog
+    <DialogPrimitive.Root
       open={open}
       onOpenChange={(isOpen) => {
         if (!isOpen) onClose();
       }}
+      // 'trap-focus' keeps the focus trap + ESC-to-close, but skips
+      // base-ui's page-scroll lock — which was visibly scrolling the
+      // body whenever a sheet opened. The sheet is fixed and covers
+      // the bottom; the body sitting still behind it is the right
+      // behaviour here.
+      modal="trap-focus"
     >
-      <DialogContent className="max-h-[92dvh] max-w-sm gap-0 overflow-hidden rounded-3xl p-0">
-        <div className="flex max-h-[92dvh] flex-col">
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop
+          className={cn(
+            "fixed inset-0 z-50 bg-black/40 supports-backdrop-filter:backdrop-blur-sm",
+            "duration-200 data-open:animate-in data-open:fade-in-0",
+            "data-closed:animate-out data-closed:fade-out-0"
+          )}
+        />
+        {/*
+          Bottom-sheet layout: pinned to the viewport bottom on mobile,
+          centered with a max width on tablet/desktop. Slides up from
+          below on open and back down on close instead of the centered
+          zoom transition the default DialogContent uses.
+        */}
+        <DialogPrimitive.Popup
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-foreground/10 outline-none",
+            "duration-300 data-open:animate-in data-open:slide-in-from-bottom",
+            "data-closed:animate-out data-closed:slide-out-to-bottom"
+          )}
+        >
           <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-muted">
             <img
               ref={imgRef}
@@ -105,7 +129,7 @@ export function MenuItemModal({
                 outOfStock && "grayscale opacity-70"
               )}
             />
-            <span className="absolute bottom-3 left-3 rounded-full border border-border bg-card px-3 py-1 text-sm font-bold text-foreground">
+            <span className="absolute bottom-3 left-3 rounded-full border border-border bg-card px-3.5 py-1.5 text-base font-bold text-foreground shadow-sm">
               {formatPrice(item.price)}
             </span>
             {outOfStock && (
@@ -113,17 +137,21 @@ export function MenuItemModal({
                 Sold out
               </span>
             )}
+            <DialogPrimitive.Close
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm backdrop-blur-sm transition-transform hover:scale-105 active:scale-95"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" strokeWidth={2.4} />
+            </DialogPrimitive.Close>
           </div>
 
-          <div className="overflow-y-auto p-5">
-            <DialogHeader className="text-left">
-              <DialogTitle className="text-2xl font-bold leading-tight">
-                {item.name}
-              </DialogTitle>
-              <DialogDescription className="sr-only">
-                {item.description}
-              </DialogDescription>
-            </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-5">
+            <DialogPrimitive.Title className="text-2xl font-bold leading-tight">
+              {item.name}
+            </DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">
+              {item.description}
+            </DialogPrimitive.Description>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {item.description}
             </p>
@@ -181,7 +209,12 @@ export function MenuItemModal({
             )}
           </div>
 
-          <div className="shrink-0 border-t border-border p-4">
+          {/* Sticky footer respects iOS safe-area inset on devices with a
+              home indicator so the action button never sits underneath. */}
+          <div
+            className="shrink-0 border-t border-border bg-popover p-4"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
             {outOfStock ? (
               <button
                 type="button"
@@ -224,8 +257,8 @@ export function MenuItemModal({
               </div>
             )}
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

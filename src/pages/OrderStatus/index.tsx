@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Bell, CheckCircle2, ChevronRight, Clock, UtensilsCrossed } from "lucide-react";
+import {
+  Bell,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Heart,
+  Sparkles,
+  UtensilsCrossed,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
 import { useOrderStatus } from "@/hooks/useOrderStatus";
@@ -8,6 +16,7 @@ import { useOrderEta } from "@/hooks/useOrderEta";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_DESCRIPTIONS,
+  ORDER_STATUS_PILL,
 } from "@/constants";
 import { AnimatedStatusIcon } from "@/components/order/AnimatedStatusIcon";
 import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
@@ -15,6 +24,17 @@ import type { OrderStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
 const STEPS: OrderStatus[] = ["pending", "preparing", "ready"];
+
+/**
+ * Tint used for the hero card background + border so the surface
+ * itself reflects the status. Lighter than the solid pill so dark
+ * body text stays readable on top.
+ */
+const STATUS_TINT: Record<OrderStatus, string> = {
+  pending: "bg-warning/15 border-warning/40",
+  preparing: "bg-info/10 border-info/40",
+  ready: "bg-success/10 border-success/40",
+};
 
 export default function OrderStatusPage() {
   const navigate = useNavigate();
@@ -32,8 +52,11 @@ export default function OrderStatusPage() {
 
   const { order, isLoading } = useOrderStatus(effectiveOrderId);
   const [callSheetOpen, setCallSheetOpen] = useState(false);
-  const showEta = order ? order.status !== "ready" : false;
-  const { minutes: etaMinutes } = useOrderEta(showEta);
+  // Show ETA only while the kitchen still has work to do — once the
+  // order is ready or served, the wait-time hint is misleading.
+  const isActive =
+    order?.status === "pending" || order?.status === "preparing";
+  const { minutes: etaMinutes } = useOrderEta(isActive);
 
   useEffect(() => {
     if (queryOrderId && queryOrderId !== currentOrderId) {
@@ -96,8 +119,80 @@ export default function OrderStatusPage() {
     );
   }
 
+  // The kitchen marks an order "served" once the customer receives it.
+  // Order.status is typed pending|preparing|ready in the customer-side
+  // types (the staff side widens that), but at runtime the served value
+  // can absolutely arrive via realtime — so we string-compare here and
+  // render a dedicated "thanks for ordering" surface instead of the
+  // tracking card, which stops making sense once it's complete.
+  const isServed = (order.status as string) === "served";
   const currentIndex = STEPS.indexOf(order.status);
   const isReady = order.status === "ready";
+
+  if (isServed) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Order Status</h2>
+
+        <section className="rounded-3xl border border-success/40 bg-success/10 p-7 text-center text-foreground animate-fade-up">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-success text-white">
+            <CheckCircle2 className="h-10 w-10" strokeWidth={2.2} />
+          </div>
+          <span className="mt-4 inline-block rounded-full bg-card px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Order #{order.id}
+          </span>
+          <h3 className="mt-2 text-3xl font-bold leading-tight">
+            Enjoy your meal
+          </h3>
+          <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">
+            Your order has been served. Thanks for ordering with SERVIO!
+          </p>
+          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-semibold text-foreground">
+            <Heart className="h-3 w-3 text-destructive" strokeWidth={2.4} />
+            We hope to see you again
+          </p>
+        </section>
+
+        <button
+          type="button"
+          onClick={() => setCallSheetOpen(true)}
+          className="flex w-full items-center justify-between gap-3 rounded-3xl border border-border bg-card p-4 text-left transition-colors hover:border-foreground/30 active:scale-[0.99]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+              <Bell className="h-4 w-4" strokeWidth={2.4} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold leading-tight">Need help?</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Call a waiter or request the bill
+              </p>
+            </div>
+          </div>
+          <ChevronRight
+            className="h-4 w-4 shrink-0 text-muted-foreground"
+            strokeWidth={2.2}
+          />
+        </button>
+
+        <button
+          onClick={() => navigate("/menu")}
+          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-foreground py-4 text-base font-semibold text-background transition-transform hover:scale-[1.01] active:scale-[0.98]"
+        >
+          <Sparkles className="h-4 w-4" strokeWidth={2.4} />
+          Order something else
+        </button>
+
+        <WaiterCallSheet
+          open={callSheetOpen}
+          onClose={() => setCallSheetOpen(false)}
+          tableId={order.tableId}
+          orderId={order.id}
+          showBill={true}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -105,10 +200,8 @@ export default function OrderStatusPage() {
 
       <section
         className={cn(
-          "rounded-3xl p-6 animate-fade-up",
-          isReady
-            ? "bg-foreground text-background"
-            : "border border-border bg-card text-foreground"
+          "rounded-3xl border p-6 text-foreground animate-fade-up",
+          STATUS_TINT[order.status]
         )}
       >
         <div className="flex flex-col items-center gap-4 text-center">
@@ -116,33 +209,23 @@ export default function OrderStatusPage() {
             key={order.status}
             className={cn(
               "flex h-20 w-20 items-center justify-center rounded-3xl",
-              isReady ? "bg-background/10" : "bg-muted"
+              ORDER_STATUS_PILL[order.status]
             )}
           >
             <AnimatedStatusIcon status={order.status} />
           </div>
           <div>
-            <span
-              className={cn(
-                "inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider",
-                isReady ? "bg-background/15" : "bg-muted text-muted-foreground"
-              )}
-            >
+            <span className="inline-block rounded-full bg-card px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Order #{order.id}
             </span>
             <h3 className="mt-2 text-3xl font-bold leading-tight">
               {ORDER_STATUS_LABELS[order.status]}
             </h3>
-            <p
-              className={cn(
-                "mx-auto mt-2 max-w-xs text-sm",
-                isReady ? "text-background/75" : "text-muted-foreground"
-              )}
-            >
+            <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">
               {ORDER_STATUS_DESCRIPTIONS[order.status]}
             </p>
-            {showEta && etaMinutes !== null && (
-              <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground">
+            {isActive && etaMinutes !== null && (
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-semibold text-foreground">
                 <Clock className="h-3 w-3" strokeWidth={2.4} />
                 Usually ready in ~{etaMinutes} min
               </p>
@@ -166,8 +249,13 @@ export default function OrderStatusPage() {
                   <div
                     className={cn(
                       "flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all",
-                      isActive
-                        ? "bg-foreground text-background"
+                      // Each active step adopts its own status colour;
+                      // completed steps share the success green so the
+                      // chain reads as "this part is done".
+                      isCurrent
+                        ? ORDER_STATUS_PILL[step]
+                        : isComplete
+                        ? "bg-success text-white"
                         : "bg-muted text-muted-foreground border border-border"
                     )}
                   >
@@ -190,7 +278,7 @@ export default function OrderStatusPage() {
                   <div className="mx-1 h-1 flex-1 overflow-hidden rounded-full bg-muted">
                     <div
                       className={cn(
-                        "h-full bg-foreground transition-all duration-500",
+                        "h-full bg-success transition-all duration-500",
                         isComplete ? "w-full" : "w-0"
                       )}
                     />

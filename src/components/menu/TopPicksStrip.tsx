@@ -59,14 +59,26 @@ function TopPickCard({
     onAdd(item);
   };
 
+  // Outer is a div with role="button" (not a real <button>) so the
+  // inner "+" can be a proper <button> without illegal nesting and
+  // without the parent stealing focus on tap — same fix as MenuItemCard.
+  const handleSelect = () => onSelect(item);
+
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(item)}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleSelect();
+        }
+      }}
       aria-label={
         outOfStock ? `${item.name} (sold out)` : `View ${item.name}`
       }
-      className="group/pick w-36 shrink-0 text-left transition-transform active:scale-[0.97]"
+      className="group/pick w-36 shrink-0 cursor-pointer text-left transition-transform active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/40 focus-visible:outline-offset-2"
     >
       <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted">
         <img
@@ -86,25 +98,17 @@ function TopPickCard({
             Sold out
           </span>
         ) : (
-          <span
-            role="button"
+          <button
+            type="button"
             aria-label={`Add ${item.name} to cart`}
-            tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
               handleAdd();
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                handleAdd();
-              }
-            }}
-            className="absolute bottom-2 right-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-110 active:scale-95"
+            className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background transition-transform hover:scale-110 active:scale-95"
           >
             <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-          </span>
+          </button>
         )}
       </div>
       <div className={cn("mt-2 px-1", outOfStock && "opacity-60")}>
@@ -115,6 +119,6 @@ function TopPickCard({
           {formatPrice(item.price)}
         </p>
       </div>
-    </button>
+    </div>
   );
 }

@@ -23,24 +23,28 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card text-foreground">
-      <div className="mx-auto flex max-w-md items-center justify-between px-4 py-3 sm:max-w-lg lg:max-w-xl">
-        <Link to="/menu" className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-foreground text-background">
+      <div className="mx-auto flex max-w-md items-center justify-between gap-2 px-4 py-3 sm:max-w-lg lg:max-w-xl">
+        <Link to="/menu" className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-foreground text-background">
             <Utensils className="h-4 w-4" strokeWidth={2.5} />
           </span>
-          <span className="text-lg font-bold tracking-tight">SERVIO</span>
+          <div className="min-w-0">
+            <p className="text-lg font-extrabold leading-none tracking-tight">
+              SERVIO
+            </p>
+            {tableId && (
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Table {tableId}
+              </p>
+            )}
+          </div>
         </Link>
 
-        <div className="flex items-center gap-1">
-          {tableId && (
-            <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-semibold">
-              Table {tableId}
-            </span>
-          )}
+        <div className="flex shrink-0 items-center -mr-1">
           {hasHistory && (
             <button
               onClick={() => navigate("/history")}
-              className="flex h-10 w-10 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
+              className="flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
               aria-label="Past orders"
               title="Past orders"
             >
@@ -50,7 +54,7 @@ export function Header() {
           <button
             onClick={() => navigate("/cart")}
             data-fly-target="cart"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
             aria-label={`Cart with ${itemCount} items`}
           >
             <ShoppingCart className="h-5 w-5" strokeWidth={2.2} />

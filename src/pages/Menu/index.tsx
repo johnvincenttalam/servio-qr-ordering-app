@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronRight, UtensilsCrossed, Search } from "lucide-react";
+import { Bell, UtensilsCrossed, Search } from "lucide-react";
 import { useMenu } from "@/hooks/useMenu";
 import { useAppStore } from "@/store/useAppStore";
 import { CategoryTabs } from "@/components/menu/CategoryTabs";
@@ -8,11 +8,12 @@ import { MenuGrid } from "@/components/menu/MenuGrid";
 import { MenuItemModal } from "@/components/menu/MenuItemModal";
 import { MenuSkeleton } from "@/components/menu/MenuSkeleton";
 import { PromoCarousel } from "@/components/menu/PromoCarousel";
+import { Greeting } from "@/components/menu/Greeting";
 import { TopPicksStrip } from "@/components/menu/TopPicksStrip";
 import { MenuSearchBar } from "@/components/menu/MenuSearchBar";
 import { EmptyState } from "@/components/common/EmptyState";
 import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
-import { formatPrice } from "@/utils";
+import { StickyCartBar } from "@/components/cart/StickyCartBar";
 import { cn } from "@/lib/utils";
 import type { MenuItem, MenuCategory, CartItemSelection } from "@/types";
 
@@ -20,7 +21,6 @@ export default function MenuPage() {
   const navigate = useNavigate();
   const tableId = useAppStore((s) => s.tableId);
   const addToCart = useAppStore((s) => s.addToCart);
-  const cartTotal = useAppStore((s) => s.getCartTotal());
   const cartCount = useAppStore((s) => s.getCartItemCount());
 
   const { items, categories, banners, isLoading } = useMenu();
@@ -93,6 +93,7 @@ export default function MenuPage() {
 
   return (
     <div className="space-y-3">
+      {showHero && <Greeting />}
       {showHero && banners.length > 0 && <PromoCarousel banners={banners} />}
 
       {showTopPicks && (
@@ -157,29 +158,7 @@ export default function MenuPage() {
         showBill={false}
       />
 
-      {cartCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
-          <div className="mx-auto max-w-md sm:max-w-lg lg:max-w-xl p-4">
-            <button
-              onClick={() => navigate("/cart")}
-              className="pointer-events-auto group flex w-full items-center justify-between rounded-full bg-foreground px-5 py-4 text-background transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98] animate-fade-up"
-            >
-              <span className="flex items-center gap-3 font-semibold">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-background/20 text-sm font-bold">
-                  {cartCount}
-                </span>
-                <span className="text-sm">View Cart</span>
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="text-base font-bold">
-                  {formatPrice(cartTotal)}
-                </span>
-                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </button>
-          </div>
-        </div>
-      )}
+      <StickyCartBar onClick={() => navigate("/cart")} />
     </div>
   );
 }
