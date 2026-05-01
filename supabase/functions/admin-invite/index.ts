@@ -18,6 +18,13 @@ interface RequestBody {
   email: string;
   role: "admin" | "kitchen" | "waiter";
   displayName?: string;
+  /**
+   * Where the invite-email link should redirect after the recipient
+   * accepts. Comes from the calling client (window.location.origin +
+   * "/admin") so prod and dev both end up on the right page without
+   * the edge function knowing which environment it's serving.
+   */
+  redirectTo?: string;
 }
 
 const corsHeaders: HeadersInit = {
@@ -107,7 +114,9 @@ serve(async (req) => {
   });
 
   const { data: invite, error: inviteError } =
-    await adminClient.auth.admin.inviteUserByEmail(email);
+    await adminClient.auth.admin.inviteUserByEmail(email, {
+      redirectTo: body.redirectTo,
+    });
 
   if (inviteError) {
     return jsonResponse({ error: inviteError.message }, 400);

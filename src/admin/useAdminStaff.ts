@@ -103,6 +103,14 @@ export function useAdminStaff(): UseAdminStaffReturn {
 
   const invite = useCallback<UseAdminStaffReturn["invite"]>(
     async (params) => {
+      // Tell the edge function where the invitee should land after
+      // accepting the email link. Origin-only so the edge function works
+      // for both dev (localhost:5173) and prod (vercel.app).
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/admin`
+          : undefined;
+
       const { data, error: invokeError } = await supabase.functions.invoke<
         { ok: boolean; user_id?: string; error?: string }
       >("admin-invite", {
@@ -110,6 +118,7 @@ export function useAdminStaff(): UseAdminStaffReturn {
           email: params.email,
           role: params.role,
           displayName: params.displayName,
+          redirectTo,
         },
       });
 
