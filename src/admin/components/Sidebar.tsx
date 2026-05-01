@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   ListOrdered,
   UtensilsCrossed,
+  Tag,
   Image as ImageIcon,
   Users,
   QrCode,
@@ -39,6 +40,12 @@ const PRIMARY_NAV: NavItem[] = [
     to: "/admin/menu",
     icon: UtensilsCrossed,
     label: "Menu",
+    allowedRoles: ["admin"],
+  },
+  {
+    to: "/admin/categories",
+    icon: Tag,
+    label: "Categories",
     allowedRoles: ["admin"],
   },
   {

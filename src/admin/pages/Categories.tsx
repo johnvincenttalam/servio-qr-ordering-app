@@ -1,0 +1,577 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  AlertCircle,
+  Archive,
+  ArchiveRestore,
+  ArrowDown,
+  ArrowUp,
+  Hash,
+  Pencil,
+  Plus,
+  Tag,
+  Type,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
+import {
+  useAdminCategories,
+  type CategoryDraft,
+} from "../useAdminCategories";
+import type { Category } from "@/types";
+import { cn } from "@/lib/utils";
+
+const ID_RE = /^[a-z0-9-]{2,32}$/;
+const RESERVED_IDS = new Set(["all", "none", "null", "undefined"]);
+
+export default function CategoriesPage() {
+  const {
+    items,
+    isLoading,
+    error,
+    create,
+    saveLabel,
+    archive,
+    restore,
+    move,
+    countItems,
+  } = useAdminCategories();
+
+  const [creating, setCreating] = useState(false);
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const [archiveTargetId, setArchiveTargetId] = useState<string | null>(null);
+
+  const editTarget = editTargetId
+    ? items.find((c) => c.id === editTargetId) ?? null
+    : null;
+  const archiveTarget = archiveTargetId
+    ? items.find((c) => c.id === archiveTargetId) ?? null
+    : null;
+
+  const active = useMemo(
+    () => items.filter((c) => c.archivedAt === null),
+    [items]
+  );
+  const archived = useMemo(
+    () => items.filter((c) => c.archivedAt !== null),
+    [items]
+  );
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Menu
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">
+            Categories
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {active.length} active
+            {archived.length > 0 && (
+              <>
+                {" · "}
+                <span className="font-semibold text-foreground">
+                  {archived.length}
+                </span>{" "}
+                archived
+              </>
+            )}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.4} />
+          New category
+        </button>
+      </header>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{error}</p>
+        </div>
+      )}
+
+      {isLoading ? (
+        <ListSkeleton />
+      ) : items.length === 0 ? (
+        <Empty onAdd={() => setCreating(true)} />
+      ) : (
+        <CategoriesList
+          items={items}
+          activeCount={active.length}
+          onEdit={(c) => setEditTargetId(c.id)}
+          onArchive={(c) => setArchiveTargetId(c.id)}
+          onRestore={restore}
+          onMove={move}
+        />
+      )}
+
+      <CategoryEditor
+        open={creating || editTarget !== null}
+        category={editTarget}
+        isNew={creating}
+        existingIds={items.map((c) => c.id)}
+        onClose={() => {
+          setCreating(false);
+          setEditTargetId(null);
+        }}
+        onCreate={create}
+        onSaveLabel={saveLabel}
+      />
+
+      <ArchiveDialog
+        target={archiveTarget}
+        countItems={countItems}
+        onClose={() => setArchiveTargetId(null)}
+        onConfirm={async (id) => {
+          await archive(id);
+          setArchiveTargetId(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function CategoriesList({
+  items,
+  activeCount,
+  onEdit,
+  onArchive,
+  onRestore,
+  onMove,
+}: {
+  items: Category[];
+  activeCount: number;
+  onEdit: (c: Category) => void;
+  onArchive: (c: Category) => void;
+  onRestore: (id: string) => void;
+  onMove: (id: string, direction: "up" | "down") => void;
+}) {
+  return (
+    <ul className="space-y-2">
+      {items.map((cat) => {
+        const isArchived = cat.archivedAt !== null;
+        // Compute up/down enablement against the active subset only.
+        const activeIndex = isArchived
+          ? -1
+          : items.filter((c) => c.archivedAt === null).findIndex((c) => c.id === cat.id);
+        return (
+          <li
+            key={cat.id}
+            // View transitions on reorder, mirroring the banners flow.
+            style={{ viewTransitionName: `category-${cat.id}` }}
+            className={cn(
+              "flex items-center gap-3 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-foreground/20",
+              isArchived && "opacity-65"
+            )}
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
+              <Tag className="h-4 w-4" strokeWidth={2.2} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold leading-tight">
+                {cat.label}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                <Hash className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+                <span className="font-mono">{cat.id}</span>
+                {isArchived && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span>Archived</span>
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1">
+              {!isArchived && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onMove(cat.id, "up")}
+                    disabled={activeIndex === 0}
+                    aria-label={`Move ${cat.label} up`}
+                    title="Move up"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onMove(cat.id, "down")}
+                    disabled={activeIndex === activeCount - 1}
+                    aria-label={`Move ${cat.label} down`}
+                    title="Move down"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onEdit(cat)}
+                    aria-label={`Edit ${cat.label}`}
+                    title="Edit label"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
+                  >
+                    <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onArchive(cat)}
+                    aria-label={`Archive ${cat.label}`}
+                    title="Archive"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                  >
+                    <Archive className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  </button>
+                </>
+              )}
+              {isArchived && (
+                <button
+                  type="button"
+                  onClick={() => onRestore(cat.id)}
+                  aria-label={`Restore ${cat.label}`}
+                  title="Restore"
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
+                >
+                  <ArchiveRestore className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  Restore
+                </button>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function CategoryEditor({
+  open,
+  category,
+  isNew,
+  existingIds,
+  onClose,
+  onCreate,
+  onSaveLabel,
+}: {
+  open: boolean;
+  category: Category | null;
+  isNew: boolean;
+  existingIds: readonly string[];
+  onClose: () => void;
+  onCreate: (draft: CategoryDraft) => Promise<void>;
+  onSaveLabel: (id: string, label: string) => Promise<void>;
+}) {
+  const [id, setId] = useState("");
+  const [label, setLabel] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setId(isNew ? "" : category?.id ?? "");
+    setLabel(category?.label ?? "");
+    setError(null);
+    setSubmitting(false);
+  }, [open, isNew, category]);
+
+  const trimmedId = id.trim().toLowerCase();
+  const trimmedLabel = label.trim();
+  const idValid = ID_RE.test(trimmedId);
+  const idReserved = RESERVED_IDS.has(trimmedId);
+  const idDuplicate = isNew && existingIds.includes(trimmedId);
+  const canSubmit =
+    trimmedLabel.length > 0 &&
+    (!isNew || (idValid && !idReserved && !idDuplicate));
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (isNew) {
+        await onCreate({ id: trimmedId, label: trimmedLabel });
+      } else if (category) {
+        await onSaveLabel(category.id, trimmedLabel);
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && !submitting) onClose();
+      }}
+    >
+      <DialogContent
+        showCloseButton={!submitting}
+        className="w-[calc(100%-2rem)] gap-0 rounded-3xl p-0 sm:w-full sm:max-w-md"
+      >
+        <DialogHeader className="border-b border-border px-5 py-4 text-left">
+          <DialogDescription className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {isNew ? "New category" : "Edit category"}
+          </DialogDescription>
+          <DialogTitle className="text-xl font-bold leading-tight">
+            {isNew ? "Add a category" : category?.label}
+          </DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          {isNew && (
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                ID{" "}
+                <span className="ml-1 normal-case tracking-normal text-muted-foreground/80">
+                  used internally
+                </span>
+              </label>
+              <div className="relative">
+                <Hash
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  strokeWidth={2.2}
+                />
+                <Input
+                  value={id}
+                  onChange={(e) => setId(e.target.value.toLowerCase())}
+                  placeholder="breakfast"
+                  autoFocus
+                  required
+                  maxLength={32}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  className="h-11 rounded-xl pl-9 lowercase font-mono"
+                />
+              </div>
+              {trimmedId && !idValid && (
+                <p className="text-[11px] text-destructive">
+                  2–32 lowercase letters, digits, or hyphens.
+                </p>
+              )}
+              {idReserved && (
+                <p className="text-[11px] text-destructive">
+                  &ldquo;{trimmedId}&rdquo; is reserved.
+                </p>
+              )}
+              {idDuplicate && (
+                <p className="text-[11px] text-destructive">
+                  A category with id &ldquo;{trimmedId}&rdquo; already exists.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Label
+            </label>
+            <div className="relative">
+              <Type
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                strokeWidth={2.2}
+              />
+              <Input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Breakfast"
+                required
+                maxLength={60}
+                className="h-11 rounded-xl pl-9"
+                autoFocus={!isNew}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
+        </form>
+
+        <footer className="border-t border-border bg-muted/40 px-5 py-3">
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="rounded-full px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              disabled={!canSubmit || submitting}
+              className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {submitting ? "Saving…" : isNew ? "Create category" : "Save"}
+            </button>
+          </div>
+        </footer>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ArchiveDialog({
+  target,
+  countItems,
+  onClose,
+  onConfirm,
+}: {
+  target: Category | null;
+  countItems: (id: string) => Promise<number>;
+  onClose: () => void;
+  onConfirm: (id: string) => Promise<void>;
+}) {
+  const [pending, setPending] = useState(false);
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!target) {
+      setCount(null);
+      return;
+    }
+    let cancelled = false;
+    countItems(target.id).then((n) => {
+      if (!cancelled) setCount(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [target, countItems]);
+
+  const handle = async () => {
+    if (!target || pending) return;
+    setPending(true);
+    try {
+      await onConfirm(target.id);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={target !== null}
+      onOpenChange={(o) => {
+        if (!o && !pending) onClose();
+      }}
+    >
+      <DialogContent
+        showCloseButton={!pending}
+        className="w-[calc(100%-2rem)] gap-0 rounded-3xl p-0 sm:w-full sm:max-w-md"
+      >
+        <DialogHeader className="border-b border-border px-5 py-4 text-left">
+          <DialogDescription className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Archive
+          </DialogDescription>
+          <DialogTitle className="text-xl font-bold leading-tight">
+            Hide {target?.label} from customers
+          </DialogTitle>
+        </DialogHeader>
+
+        {target && (
+          <div className="space-y-3 px-5 py-4 text-sm">
+            <p className="text-foreground">
+              Customers will no longer see this category in the menu, and
+              the manager picker will skip it.
+            </p>
+            {count !== null && count > 0 && (
+              <div className="flex items-start gap-2 rounded-2xl border border-warning/40 bg-warning/15 p-3 text-xs text-foreground">
+                <AlertCircle
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                  strokeWidth={2.4}
+                />
+                <p>
+                  <span className="font-bold">
+                    {count} item{count === 1 ? "" : "s"}
+                  </span>{" "}
+                  still belong to this category. They&apos;ll stay assigned;
+                  reassign them or archive them separately to clean up.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <footer className="border-t border-border bg-muted/40 px-5 py-3">
+          {target ? (
+            <ConfirmFooterRow
+              question={
+                <>
+                  Archive <span className="font-bold">{target.label}</span>?
+                </>
+              }
+              cancelLabel="Keep"
+              confirmLabel="Archive"
+              pendingLabel="Archiving…"
+              pending={pending}
+              onCancel={onClose}
+              onConfirm={handle}
+            />
+          ) : null}
+        </footer>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <ul className="space-y-2">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <li
+          key={i}
+          className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
+        >
+          <div className="h-10 w-10 shrink-0 rounded-xl bg-muted" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3.5 w-1/3 rounded bg-muted" />
+            <div className="h-3 w-1/4 rounded bg-muted" />
+          </div>
+          <div className="h-8 w-8 rounded-full bg-muted" />
+          <div className="h-8 w-8 rounded-full bg-muted" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Empty({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-12 text-center">
+      <p className="text-sm text-muted-foreground">No categories yet.</p>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
+      >
+        Create the first
+      </button>
+    </div>
+  );
+}
