@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { User, MessageSquare, Receipt, ChevronRight } from "lucide-react";
+import { Lock, User, MessageSquare, Receipt, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CartSummary } from "@/components/cart/CartSummary";
@@ -9,6 +9,7 @@ import { OrderSuccessModal } from "@/components/checkout/OrderSuccessModal";
 import { useAppStore } from "@/store/useAppStore";
 import { submitOrder } from "@/services/order-service";
 import { getLastCustomerName, recordOrder } from "@/lib/orderHistory";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { formatPrice } from "@/utils";
 
 export default function CheckoutPage() {
@@ -19,10 +20,17 @@ export default function CheckoutPage() {
   const clearCart = useAppStore((s) => s.clearCart);
   const setCurrentOrderId = useAppStore((s) => s.setCurrentOrderId);
 
+  const { settings } = useRestaurantSettings();
+
   const [customerName, setCustomerName] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
+
+  const nameRequired = settings.requireCustomerName;
+  const closed = !settings.openForOrders;
+  const nameMissing = nameRequired && customerName.trim().length === 0;
+  const canSubmit = !isSubmitting && !closed && !nameMissing;
 
   // Pre-fill the name from the most recent past order on this device.
   // Returning customers don't have to retype it on every visit.
@@ -44,6 +52,14 @@ export default function CheckoutPage() {
   const total = getCartTotal();
 
   const handlePlaceOrder = async () => {
+    if (closed) {
+      toast.error("We're not taking orders right now.");
+      return;
+    }
+    if (nameMissing) {
+      toast.error("Please enter your name to continue.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const order = await submitOrder({
@@ -90,13 +106,17 @@ export default function CheckoutPage() {
             className="flex items-center gap-2 text-sm font-semibold"
           >
             <User className="h-4 w-4 text-muted-foreground" />
-            Name <span className="font-medium text-muted-foreground">(optional)</span>
+            Name{" "}
+            <span className="font-medium text-muted-foreground">
+              {nameRequired ? "(required)" : "(optional)"}
+            </span>
           </label>
           <Input
             id="name"
             placeholder="Enter your name"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
+            required={nameRequired}
             className="h-11 rounded-xl"
           />
         </div>
@@ -130,13 +150,25 @@ export default function CheckoutPage() {
 
       <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
         <div className="mx-auto max-w-md sm:max-w-2xl lg:max-w-3xl border-t border-border bg-background p-4 pointer-events-auto">
+          {closed && (
+            <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-3 py-1.5 text-xs font-semibold text-foreground">
+              <Lock className="h-3 w-3" strokeWidth={2.4} />
+              We&apos;re not taking orders right now
+            </p>
+          )}
           <button
             onClick={handlePlaceOrder}
-            disabled={isSubmitting}
-            className="group flex w-full items-center justify-between rounded-full bg-foreground px-5 py-4 text-background transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98] disabled:opacity-70"
+            disabled={!canSubmit}
+            className="group flex w-full items-center justify-between rounded-full bg-foreground px-5 py-4 text-background transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
           >
             <span className="text-sm font-semibold">
-              {isSubmitting ? "Placing Order..." : "Place Order"}
+              {closed
+                ? "Closed"
+                : nameMissing
+                ? "Add your name to continue"
+                : isSubmitting
+                ? "Placing Order..."
+                : "Place Order"}
             </span>
             <span className="flex items-center gap-2">
               <span className="text-base font-bold">{formatPrice(total)}</span>

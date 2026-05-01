@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { UtensilsCrossed, Search } from "lucide-react";
+import { Lock, UtensilsCrossed, Search } from "lucide-react";
 import { useMenu } from "@/hooks/useMenu";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { useAppStore } from "@/store/useAppStore";
 import { CategoryTabs } from "@/components/menu/CategoryTabs";
 import { MenuGrid } from "@/components/menu/MenuGrid";
@@ -21,6 +22,7 @@ export default function MenuPage() {
   const addToCart = useAppStore((s) => s.addToCart);
 
   const { items, categories, banners, isLoading } = useMenu();
+  const { settings } = useRestaurantSettings();
   const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">(
     "all"
   );
@@ -89,6 +91,19 @@ export default function MenuPage() {
 
   return (
     <div className="space-y-3">
+      {!settings.openForOrders && (
+        <div className="flex items-start gap-2.5 rounded-2xl border border-warning/40 bg-warning/15 p-3 animate-fade-up">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-warning/40">
+            <Lock className="h-3.5 w-3.5 text-foreground" strokeWidth={2.4} />
+          </span>
+          <div className="text-sm">
+            <p className="font-bold leading-tight">We&apos;re not taking orders right now</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Browse the menu — checkout will reopen when the kitchen does.
+            </p>
+          </div>
+        </div>
+      )}
       {showHero && <Greeting />}
       {showHero && banners.length > 0 && <PromoCarousel banners={banners} />}
 

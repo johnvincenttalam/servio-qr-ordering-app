@@ -11,6 +11,7 @@ import {
   QrCode,
   ChefHat,
   LogOut,
+  Settings,
   Utensils,
   ExternalLink,
   Bell,
@@ -74,6 +75,12 @@ const PRIMARY_NAV: NavItem[] = [
     to: "/admin/activity",
     icon: Activity,
     label: "Activity",
+    allowedRoles: ["admin"],
+  },
+  {
+    to: "/admin/settings",
+    icon: Settings,
+    label: "Settings",
     allowedRoles: ["admin"],
   },
 ];
