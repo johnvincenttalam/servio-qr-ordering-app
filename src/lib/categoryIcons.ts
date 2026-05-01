@@ -18,7 +18,6 @@ import {
   Flame,
   GlassWater,
   IceCream,
-  IceCreamCone,
   Pizza,
   Popcorn,
   Salad,
@@ -27,7 +26,6 @@ import {
   Sparkles,
   Star,
   Tag,
-  Utensils,
   UtensilsCrossed,
   Wheat,
   Wine,
@@ -41,9 +39,9 @@ import {
  * shown in the picker grid.
  */
 export const CATEGORY_ICONS: { name: string; icon: LucideIcon }[] = [
-  // Generic
+  // Generic — Utensils (single fork) was dropped; UtensilsCrossed is
+  // more distinctive at button size.
   { name: "Tag", icon: Tag },
-  { name: "Utensils", icon: Utensils },
   { name: "UtensilsCrossed", icon: UtensilsCrossed },
   { name: "ChefHat", icon: ChefHat },
   { name: "Sparkles", icon: Sparkles },
@@ -60,9 +58,8 @@ export const CATEGORY_ICONS: { name: string; icon: LucideIcon }[] = [
   { name: "Egg", icon: Egg },
   { name: "Wheat", icon: Wheat },
   { name: "Croissant", icon: Croissant },
-  // Sweets / snacks
+  // Sweets / snacks — IceCreamCone was dropped; IceCream covers it.
   { name: "IceCream", icon: IceCream },
-  { name: "IceCreamCone", icon: IceCreamCone },
   { name: "Cake", icon: Cake },
   { name: "Cookie", icon: Cookie },
   { name: "Donut", icon: Donut },
