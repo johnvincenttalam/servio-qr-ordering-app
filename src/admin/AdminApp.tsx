@@ -10,6 +10,7 @@ import OrdersPage from "./pages/Orders";
 import BannersPage from "./pages/Banners";
 import StaffPage from "./pages/Staff";
 import TablesPage from "./pages/Tables";
+import ProfilePage from "./pages/Profile";
 
 export default function AdminApp() {
   return (
@@ -27,6 +28,7 @@ export default function AdminApp() {
         <Route index element={<DashboardPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route
           path="menu"
           element={

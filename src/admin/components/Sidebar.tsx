@@ -8,7 +8,6 @@ import {
   Users,
   QrCode,
   ChefHat,
-  KeyRound,
   LogOut,
   Utensils,
   ExternalLink,
@@ -190,7 +189,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         <div className="border-t border-border p-3">
-          <div className="flex items-center gap-2.5 px-2 py-2">
+          <NavLink
+            to="/admin/profile"
+            onClick={onClose}
+            aria-label="Open your profile"
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors active:scale-[0.99]",
+                isActive
+                  ? "bg-muted"
+                  : "hover:bg-muted"
+              )
+            }
+          >
             {avatarUrl ? (
               <img
                 src={avatarUrl}
@@ -212,26 +223,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </p>
               )}
             </div>
-          </div>
-          <NavLink
-            to="/admin/reset-password"
-            onClick={onClose}
-            className={({ isActive }) =>
-              cn(
-                "mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-colors active:scale-[0.98]",
-                isActive
-                  ? "bg-foreground text-background"
-                  : "text-foreground/80 hover:bg-muted hover:text-foreground"
-              )
-            }
-          >
-            <KeyRound className="h-3.5 w-3.5" strokeWidth={2.2} />
-            Change password
           </NavLink>
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
+            className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
           >
             <LogOut className="h-3.5 w-3.5" strokeWidth={2.2} />
             Sign out
