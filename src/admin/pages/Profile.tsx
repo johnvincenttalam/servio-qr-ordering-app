@@ -44,12 +44,12 @@ const ROLE_PILL: Record<StaffRole, string> = {
 };
 
 export default function ProfilePage() {
-  const { user, role, displayName, avatarUrl } = useAuth();
+  const { user, role, displayName, avatarUrl, refreshStaff } = useAuth();
   const profile = useMyProfile(user?.id ?? null);
 
-  // Live local copy of the avatar URL so the preview updates instantly
-  // after upload/remove, without waiting for AuthProvider's background
-  // refresh to repaint the sidebar.
+  // Live local copy of the avatar URL so the preview flashes the new
+  // file immediately on upload, before refreshStaff completes its
+  // round-trip to repaint the sidebar.
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(
     avatarUrl
   );
@@ -133,11 +133,16 @@ export default function ProfilePage() {
         onUpload={async (file) => {
           const url = await profile.uploadAvatar(file);
           setLocalAvatarUrl(url);
+          // Re-pull the staff row so AuthProvider's cached avatarUrl
+          // (and the sidebar that reads from it) updates without waiting
+          // for next sign-in.
+          await refreshStaff();
           toast.success("Avatar updated");
         }}
         onRemove={async () => {
           await profile.removeAvatar();
           setLocalAvatarUrl(null);
+          await refreshStaff();
           toast.success("Avatar removed");
         }}
       />
@@ -147,13 +152,23 @@ export default function ProfilePage() {
         pending={profile.pending === "name"}
         onSave={async (name) => {
           await profile.saveDisplayName(name);
+          await refreshStaff();
           toast.success("Name saved");
         }}
       />
 
       <PasswordSection
         pending={profile.pending === "password"}
-        onSave={profile.changePassword}
+        onSave={async (newPassword) => {
+          const result = await profile.changePassword(newPassword);
+          if (result.ok) {
+            // Pulls the cleared password_temporary flag forward so a
+            // forced-flow user changing password from here doesn't
+            // get redirected back to /admin/reset-password.
+            await refreshStaff();
+          }
+          return result;
+        }}
       />
     </div>
   );

@@ -32,6 +32,13 @@ interface AuthContextValue {
    */
   signIn: (identifier: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Re-fetch the current user's staff row and update the cached
+   * profile state. Call this after self-service updates (display
+   * name, avatar, password) so the sidebar and any other consumers
+   * pick up the new values without waiting for next sign-in.
+   */
+  refreshStaff: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -115,6 +122,42 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string) {
   ]);
 }
 
+type FetchResult =
+  | { ok: true; staff: CachedStaff | null }
+  | { ok: false };
+
+async function fetchStaffFromDb(userId: string): Promise<FetchResult> {
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from("staff")
+        .select("role, display_name, avatar_url, password_temporary")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      ROLE_QUERY_TIMEOUT_MS,
+      "loadStaff"
+    );
+    if (error) {
+      console.error("[auth] loadStaff error:", error);
+      return { ok: false };
+    }
+    if (!data?.role) return { ok: true, staff: null };
+    return {
+      ok: true,
+      staff: {
+        role: data.role as StaffRole,
+        displayName: (data.display_name as string | null) ?? null,
+        avatarUrl: (data.avatar_url as string | null) ?? null,
+        passwordTemporary:
+          (data.password_temporary as boolean | null) ?? false,
+      },
+    };
+  } catch (err) {
+    console.error("[auth] loadStaff failed:", err);
+    return { ok: false };
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<StaffRole | null>(null);
@@ -126,42 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let firstEventReceived = false;
-
-    type FetchResult =
-      | { ok: true; staff: CachedStaff | null }
-      | { ok: false };
-
-    async function fetchStaffFromDb(userId: string): Promise<FetchResult> {
-      try {
-        const { data, error } = await withTimeout(
-          supabase
-            .from("staff")
-            .select("role, display_name, avatar_url, password_temporary")
-            .eq("user_id", userId)
-            .maybeSingle(),
-          ROLE_QUERY_TIMEOUT_MS,
-          "loadStaff"
-        );
-        if (error) {
-          console.error("[auth] loadStaff error:", error);
-          return { ok: false };
-        }
-        if (!data?.role) return { ok: true, staff: null };
-        return {
-          ok: true,
-          staff: {
-            role: data.role as StaffRole,
-            displayName: (data.display_name as string | null) ?? null,
-            avatarUrl: (data.avatar_url as string | null) ?? null,
-            passwordTemporary:
-              (data.password_temporary as boolean | null) ?? false,
-          },
-        };
-      } catch (err) {
-        console.error("[auth] loadStaff failed:", err);
-        return { ok: false };
-      }
-    }
 
     async function backgroundRefreshStaff(userId: string) {
       const result = await fetchStaffFromDb(userId);
@@ -287,6 +294,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  const refreshStaff = useCallback(async () => {
+    if (!user?.id) return;
+    const result = await fetchStaffFromDb(user.id);
+    if (!result.ok) return;
+    setCachedStaff(user.id, result.staff);
+    setRole(result.staff?.role ?? null);
+    setDisplayName(result.staff?.displayName ?? null);
+    setAvatarUrl(result.staff?.avatarUrl ?? null);
+    setPasswordTemporary(result.staff?.passwordTemporary ?? false);
+  }, [user?.id]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -298,6 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         signIn,
         signOut,
+        refreshStaff,
       }}
     >
       {children}
