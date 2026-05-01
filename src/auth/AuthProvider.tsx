@@ -193,9 +193,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         if (cancelled) return;
-        console.log("[auth] state:", event);
         firstEventReceived = true;
         await handleAuthEvent(session);
       }

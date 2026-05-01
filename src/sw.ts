@@ -40,7 +40,6 @@ interface PushPayload {
 
 self.addEventListener("push", (event) => {
   const rawText = event.data?.text() ?? "";
-  console.log("[sw] push received:", rawText);
 
   let payload: PushPayload = { title: "SERVIO" };
   if (rawText) {
@@ -59,9 +58,6 @@ self.addEventListener("push", (event) => {
       tag: payload.tag ?? "servio-order",
       data: { url: payload.url ?? "/order-status" },
       requireInteraction: false,
-    })
-    .then(() => {
-      console.log("[sw] notification shown");
     })
     .catch((err) => {
       console.error("[sw] showNotification failed:", err);

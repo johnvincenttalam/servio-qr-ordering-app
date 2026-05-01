@@ -71,7 +71,6 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
   const [realtimeStatus, setRealtimeStatus] = useState<string>("idle");
 
   const refetch = useCallback(async () => {
-    console.log("[kitchen] refetch start");
     const { data, error: queryError } = await supabase
       .from("orders")
       .select(
@@ -89,13 +88,8 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
       return;
     }
 
-    const rows = (data ?? []) as OrderRow[];
-    console.log(
-      `[kitchen] refetch done — ${rows.length} active order(s):`,
-      rows.map((r) => `${r.id} (${r.status})`)
-    );
     setError(null);
-    setOrders(rows.map(rowToOrder));
+    setOrders(((data ?? []) as OrderRow[]).map(rowToOrder));
   }, []);
 
   useEffect(() => {
@@ -112,19 +106,8 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
   useRealtimeTables({
     channel: "kitchen-orders",
     tables: ["orders", "order_items"],
-    onChange: (table, payload) => {
-      const row = payload.new as { id?: string; order_id?: string } | null;
-      console.log(
-        `[kitchen] ${table} event:`,
-        payload.eventType,
-        row?.id ?? row?.order_id
-      );
-      refetch();
-    },
-    onStatus: (status) => {
-      console.log("[kitchen] realtime status:", status);
-      setRealtimeStatus(status);
-    },
+    onChange: () => refetch(),
+    onStatus: (status) => setRealtimeStatus(status),
   });
 
   const advance = useCallback(
