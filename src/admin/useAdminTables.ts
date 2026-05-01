@@ -31,6 +31,16 @@ export interface TableDraft {
   label: string;
 }
 
+/**
+ * 32-char hex token. 128 bits of entropy is plenty for a non-secret
+ * URL parameter that just gates "is this the right printed sticker".
+ */
+function generateQrToken(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 interface UseAdminTablesReturn {
   items: AdminTable[];
   isLoading: boolean;
@@ -40,6 +50,11 @@ interface UseAdminTablesReturn {
   saveLabel: (id: string, label: string) => Promise<void>;
   archive: (id: string) => Promise<void>;
   restore: (id: string) => Promise<void>;
+  /**
+   * Generate or rotate the QR token, invalidating any printed stickers
+   * that carried the previous value.
+   */
+  rotateToken: (id: string) => Promise<string>;
   /** Active orders (pending/preparing/ready) currently on a table. */
   countActiveOrders: (id: string) => Promise<number>;
 }
@@ -90,9 +105,15 @@ export function useAdminTables(): UseAdminTablesReturn {
 
   const create = useCallback(
     async (draft: TableDraft) => {
+      // Mint a fresh token at create time so the new table is ready to
+      // print without a separate "generate token" step.
       const { error: insertError } = await supabase
         .from("tables")
-        .insert({ id: draft.id, label: draft.label });
+        .insert({
+          id: draft.id,
+          label: draft.label,
+          qr_token: generateQrToken(),
+        });
       if (insertError) {
         console.error("[admin/tables] create failed:", insertError);
         throw insertError;
@@ -167,6 +188,29 @@ export function useAdminTables(): UseAdminTablesReturn {
     [refetch]
   );
 
+  const rotateToken = useCallback(
+    async (id: string) => {
+      const next = generateQrToken();
+      // Optimistic so the QR modal re-renders immediately; if the write
+      // fails we refetch to reset to the server's truth.
+      setItems((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, qrToken: next } : t))
+      );
+      const { error: updateError } = await supabase
+        .from("tables")
+        .update({ qr_token: next })
+        .eq("id", id);
+      if (updateError) {
+        console.error("[admin/tables] rotate token failed:", updateError);
+        toast.error("Couldn't rotate token");
+        await refetch();
+        throw updateError;
+      }
+      return next;
+    },
+    [refetch]
+  );
+
   const countActiveOrders = useCallback(async (id: string) => {
     const { count, error: queryError } = await supabase
       .from("orders")
@@ -189,6 +233,7 @@ export function useAdminTables(): UseAdminTablesReturn {
     saveLabel,
     archive,
     restore,
+    rotateToken,
     countActiveOrders,
   };
 }

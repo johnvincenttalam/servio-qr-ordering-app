@@ -35,7 +35,7 @@ export function useTableValidation(): UseTableValidationReturn {
       // missing row covers both "doesn't exist" and "was archived".
       const { data, error: queryError } = await supabase
         .from("tables")
-        .select("id")
+        .select("id, qr_token")
         .eq("id", tableParam)
         .is("archived_at", null)
         .maybeSingle();
@@ -53,6 +53,21 @@ export function useTableValidation(): UseTableValidationReturn {
         setError(`Invalid table "${tableParam}". Please scan a valid QR code.`);
         setIsChecking(false);
         return;
+      }
+
+      // Token check: backwards compatible. A null qr_token means this
+      // table was set up before tokens existed — accept any (or no) k
+      // until the owner generates a token. Once a token is set, the URL
+      // must carry the matching k.
+      if (data.qr_token) {
+        const k = searchParams.get("k");
+        if (!k || k !== data.qr_token) {
+          setError(
+            "This QR code is no longer valid. Ask the staff for an updated sticker."
+          );
+          setIsChecking(false);
+          return;
+        }
       }
 
       setTableId(tableParam);

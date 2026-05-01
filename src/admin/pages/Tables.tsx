@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAdminTables, type AdminTable } from "../useAdminTables";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import { TableEditor } from "./TableEditor";
+import { TableQrModal } from "./TableQrModal";
 
 type Filter = "active" | "archived" | "all";
 
@@ -30,6 +31,7 @@ export default function TablesPage() {
     saveLabel,
     archive,
     restore,
+    rotateToken,
     countActiveOrders,
   } = useAdminTables();
 
@@ -37,6 +39,7 @@ export default function TablesPage() {
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [archiveTargetId, setArchiveTargetId] = useState<string | null>(null);
+  const [qrTargetId, setQrTargetId] = useState<string | null>(null);
 
   const counts = useMemo(() => {
     const active = items.filter((t) => !t.archivedAt).length;
@@ -57,6 +60,9 @@ export default function TablesPage() {
     : null;
   const archiveTarget = archiveTargetId
     ? items.find((t) => t.id === archiveTargetId) ?? null
+    : null;
+  const qrTarget = qrTargetId
+    ? items.find((t) => t.id === qrTargetId) ?? null
     : null;
 
   return (
@@ -114,6 +120,7 @@ export default function TablesPage() {
           onEdit={(t) => setEditTargetId(t.id)}
           onArchive={(id) => setArchiveTargetId(id)}
           onRestore={restore}
+          onShowQr={(id) => setQrTargetId(id)}
         />
       )}
 
@@ -138,6 +145,13 @@ export default function TablesPage() {
           await archive(id);
           setArchiveTargetId(null);
         }}
+      />
+
+      <TableQrModal
+        open={qrTarget !== null}
+        table={qrTarget}
+        onClose={() => setQrTargetId(null)}
+        onRotate={rotateToken}
       />
     </div>
   );
@@ -304,11 +318,13 @@ function TablesGrid({
   onEdit,
   onArchive,
   onRestore,
+  onShowQr,
 }: {
   items: AdminTable[];
   onEdit: (t: AdminTable) => void;
   onArchive: (id: string) => void;
   onRestore: (id: string) => void;
+  onShowQr: (id: string) => void;
 }) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -319,6 +335,7 @@ function TablesGrid({
           onEdit={() => onEdit(table)}
           onArchive={() => onArchive(table.id)}
           onRestore={() => onRestore(table.id)}
+          onShowQr={() => onShowQr(table.id)}
         />
       ))}
     </ul>
@@ -330,11 +347,13 @@ function TableCard({
   onEdit,
   onArchive,
   onRestore,
+  onShowQr,
 }: {
   table: AdminTable;
   onEdit: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onShowQr: () => void;
 }) {
   const isArchived = !!table.archivedAt;
   return (
@@ -344,11 +363,23 @@ function TableCard({
         isArchived && "opacity-65"
       )}
     >
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted">
+      <button
+        type="button"
+        onClick={onShowQr}
+        disabled={isArchived}
+        title={isArchived ? "Archived — restore to print QR" : "Open QR sticker"}
+        aria-label={`Open QR for ${table.id}`}
+        className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted transition-colors",
+          !isArchived &&
+            "hover:bg-foreground hover:text-background active:scale-95 cursor-pointer",
+          isArchived && "cursor-not-allowed"
+        )}
+      >
         <span className="text-base font-extrabold tracking-tight">
           {table.id}
         </span>
-      </div>
+      </button>
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold leading-tight">
@@ -356,13 +387,26 @@ function TableCard({
         </p>
         <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
           <QrCode className="h-3 w-3 shrink-0" strokeWidth={2.2} />
-          {isArchived ? "Archived" : "Ready for QR"}
+          {isArchived
+            ? "Archived"
+            : table.qrToken
+            ? "Token live"
+            : "No token"}
         </p>
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
         {!isArchived ? (
           <>
+            <button
+              type="button"
+              onClick={onShowQr}
+              aria-label={`QR for ${table.id}`}
+              title="Show QR"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
+            >
+              <QrCode className="h-3.5 w-3.5" strokeWidth={2.2} />
+            </button>
             <button
               type="button"
               onClick={onEdit}
