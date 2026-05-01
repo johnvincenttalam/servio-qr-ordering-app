@@ -59,7 +59,6 @@ interface UseKitchenOrdersReturn {
   orders: KitchenOrder[];
   isLoading: boolean;
   error: string | null;
-  realtimeStatus: string;
   refetch: () => Promise<void>;
   advance: (id: string, current: OrderStatus) => Promise<void>;
 }
@@ -68,7 +67,6 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<string>("idle");
 
   const refetch = useCallback(async () => {
     const { data, error: queryError } = await supabase
@@ -107,7 +105,6 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
     channel: "kitchen-orders",
     tables: ["orders", "order_items"],
     onChange: () => refetch(),
-    onStatus: (status) => setRealtimeStatus(status),
   });
 
   const advance = useCallback(
@@ -122,15 +119,30 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
           : null;
       if (!next) return;
 
-      // Optimistic update so the staff member sees instant feedback
-      setOrders((prev) => {
-        if (next === "served") {
-          return prev.filter((o) => o.id !== id);
-        }
-        return prev.map((o) =>
-          o.id === id ? { ...o, status: next as OrderStatus } : o
-        );
-      });
+      // Optimistic update — wrapped in startViewTransition so the card
+      // smoothly morphs between columns (or fades out when served)
+      // instead of pop-disappearing. Each card has a stable
+      // viewTransitionName ("kitchen-order-<id>") which the browser
+      // tracks across positions.
+      const performAdvance = () => {
+        setOrders((prev) => {
+          if (next === "served") {
+            return prev.filter((o) => o.id !== id);
+          }
+          return prev.map((o) =>
+            o.id === id ? { ...o, status: next as OrderStatus } : o
+          );
+        });
+      };
+
+      const docVT = document as Document & {
+        startViewTransition?: (cb: () => void) => unknown;
+      };
+      if (typeof docVT.startViewTransition === "function") {
+        docVT.startViewTransition(performAdvance);
+      } else {
+        performAdvance();
+      }
 
       const { error: updateError } = await supabase
         .from("orders")
@@ -160,5 +172,5 @@ export function useKitchenOrders(): UseKitchenOrdersReturn {
     [refetch]
   );
 
-  return { orders, isLoading, error, realtimeStatus, refetch, advance };
+  return { orders, isLoading, error, refetch, advance };
 }
