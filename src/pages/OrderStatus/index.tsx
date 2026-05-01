@@ -9,7 +9,6 @@ import {
   Sparkles,
   UtensilsCrossed,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
 import { useOrderStatus } from "@/hooks/useOrderStatus";
 import { useOrderEta } from "@/hooks/useOrderEta";
@@ -19,6 +18,7 @@ import {
   ORDER_STATUS_PILL,
 } from "@/constants";
 import { AnimatedStatusIcon } from "@/components/order/AnimatedStatusIcon";
+import { OrderStatusSkeleton } from "@/components/order/OrderStatusSkeleton";
 import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
 import type { OrderStatus } from "@/types";
 import { cn } from "@/lib/utils";
@@ -119,12 +119,7 @@ export default function OrderStatusPage() {
   }
 
   if (isLoading && !order) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-56 w-full rounded-3xl" />
-      </div>
-    );
+    return <OrderStatusSkeleton />;
   }
 
   if (!order) {

@@ -12,12 +12,15 @@ import {
   LogOut,
   Utensils,
   ExternalLink,
+  Bell,
+  BellOff,
   X,
   type LucideIcon,
 } from "lucide-react";
 import type { StaffRole } from "@/auth/AuthProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
+import { useAdminOrderPulse } from "../useAdminOrderPulse";
 
 interface NavItem {
   to: string;
@@ -96,6 +99,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, role, displayName, avatarUrl, signOut } = useAuth();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
+  const { pendingCount, soundEnabled, toggleSound } = useAdminOrderPulse();
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -170,19 +174,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3">
-          <div className="space-y-0.5">
+        <nav className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-1">
             {primary.map((item) => (
-              <SidebarLink key={item.to} item={item} onNavigate={onClose} />
+              <SidebarLink
+                key={item.to}
+                item={item}
+                onNavigate={onClose}
+                badge={item.to === "/admin/orders" ? pendingCount : 0}
+              />
             ))}
           </div>
 
           {secondary.length > 0 && (
             <>
-              <div className="my-3 px-3">
+              <div className="my-4 px-3">
                 <div className="border-t border-border" />
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {secondary.map((item) => (
                   <SidebarLink
                     key={item.to}
@@ -195,14 +204,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           )}
         </nav>
 
-        <div className="border-t border-border p-3">
+        <div className="border-t border-border p-4">
           <NavLink
             to="/admin/profile"
             onClick={onClose}
             aria-label="Open your profile"
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors active:scale-[0.99]",
+                "flex items-center gap-3 rounded-xl px-2 py-2.5 transition-colors active:scale-[0.99]",
                 isActive
                   ? "bg-muted"
                   : "hover:bg-muted"
@@ -231,10 +240,36 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               )}
             </div>
           </NavLink>
+          {/* New-order chime toggle. Uses the same primed AudioContext as
+              the kitchen page — first activation needs this click as a
+              user gesture, hence the toggle being a real button. */}
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-pressed={soundEnabled}
+            title={
+              soundEnabled
+                ? "New-order chime on — click to mute"
+                : "New-order chime off — click to enable"
+            }
+            className={cn(
+              "mt-2 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors active:scale-[0.98]",
+              soundEnabled
+                ? "bg-success/10 text-foreground hover:bg-success/15"
+                : "text-foreground/80 hover:bg-muted hover:text-foreground"
+            )}
+          >
+            {soundEnabled ? (
+              <Bell className="h-3.5 w-3.5" strokeWidth={2.4} />
+            ) : (
+              <BellOff className="h-3.5 w-3.5" strokeWidth={2.2} />
+            )}
+            {soundEnabled ? "Chime on" : "Chime off"}
+          </button>
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
+            className="mt-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
           >
             <LogOut className="h-3.5 w-3.5" strokeWidth={2.2} />
             Sign out
@@ -248,11 +283,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 function SidebarLink({
   item,
   onNavigate,
+  badge = 0,
 }: {
   item: NavItem;
   onNavigate: () => void;
+  /** Optional unread/pending count to surface on this link. Falsy = hidden. */
+  badge?: number;
 }) {
   const { to, end, icon: Icon, label, external } = item;
+  const showBadge = badge > 0;
   return (
     <NavLink
       to={to}
@@ -260,20 +299,38 @@ function SidebarLink({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          "group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+          "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
           isActive
             ? "bg-foreground text-background"
             : "text-foreground/70 hover:bg-muted hover:text-foreground"
         )
       }
     >
-      <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-      <span className="flex-1 truncate">{label}</span>
-      {external && (
-        <ExternalLink
-          className="h-3 w-3 shrink-0 opacity-50"
-          strokeWidth={2.2}
-        />
+      {({ isActive }) => (
+        <>
+          <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+          <span className="flex-1 truncate">{label}</span>
+          {showBadge && (
+            <span
+              key={badge}
+              aria-label={`${badge} pending`}
+              className={cn(
+                "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums animate-pop-in",
+                isActive
+                  ? "bg-background text-foreground"
+                  : "bg-warning text-foreground"
+              )}
+            >
+              {badge > 99 ? "99+" : badge}
+            </span>
+          )}
+          {external && (
+            <ExternalLink
+              className="h-3 w-3 shrink-0 opacity-50"
+              strokeWidth={2.2}
+            />
+          )}
+        </>
       )}
     </NavLink>
   );

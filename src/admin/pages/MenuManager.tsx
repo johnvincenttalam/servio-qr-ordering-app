@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles, AlertCircle, Pencil, Plus, Search, X } from "lucide-react";
+import {
+  Sparkles,
+  AlertCircle,
+  LayoutGrid,
+  List,
+  Pencil,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/utils";
 import { useAdminMenu } from "../useAdminMenu";
@@ -12,6 +21,9 @@ type DrawerState =
   | null;
 
 type CategoryFilter = MenuCategory | "all";
+
+type ViewMode = "list" | "grid";
+const VIEW_MODE_STORAGE_KEY = "servio.admin.menu.view";
 
 export default function MenuManagerPage() {
   const {
@@ -37,6 +49,18 @@ export default function MenuManagerPage() {
   const [soldOutOnly, setSoldOutOnly] = useState(false);
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Persist the chosen view mode so admins don't have to re-pick it
+  // every visit. Read lazily from localStorage so SSR (if ever) doesn't
+  // bork; fall back to "list" which is the legacy default.
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "list";
+    const stored = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    return stored === "grid" ? "grid" : "list";
+  });
+  useEffect(() => {
+    window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
 
   // ⌘K / Ctrl+K to focus search
   useEffect(() => {
@@ -127,24 +151,49 @@ export default function MenuManagerPage() {
         searchInputRef={searchInputRef}
       />
 
-      <CategoryFilters
-        categories={categories}
-        filter={filter}
-        onChange={setFilter}
-        count={items.length}
-        trailing={
-          <SoldOutChip
-            active={soldOutOnly}
-            onToggle={() => setSoldOutOnly((v) => !v)}
-            count={stats.soldOut}
+      {/* Filters row: chips scroll horizontally inside the left flex
+          slot while the view toggle stays anchored on the right edge —
+          on a long category list, the toggle never scrolls off the
+          viewport on mobile. The chip slot's right edge fades to
+          transparent so overflowing chips don't hard-clip mid-text
+          against the toggle; pr-3 keeps a comfortable gap from the
+          toggle when chips fully fit. */}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1 pr-3 [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
+          <CategoryFilters
+            categories={categories}
+            filter={filter}
+            onChange={setFilter}
+            count={items.length}
+            trailing={
+              <SoldOutChip
+                active={soldOutOnly}
+                onToggle={() => setSoldOutOnly((v) => !v)}
+                count={stats.soldOut}
+              />
+            }
           />
-        }
-      />
+        </div>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
+      </div>
 
       {isLoading ? (
-        <ListSkeleton />
+        viewMode === "grid" ? <GridSkeleton /> : <ListSkeleton />
       ) : filtered.length === 0 ? (
         <EmptyMessage isFiltering={isFiltering} onClear={clearFilters} />
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {filtered.map((item) => (
+            <MenuItemCard
+              key={item.id}
+              item={item}
+              categoryLabel={labelFor(item.category)}
+              showCategory={filter === "all"}
+              onToggleStock={(value) => setInStock(item.id, value)}
+              onEdit={() => setDrawer({ mode: "edit", item })}
+            />
+          ))}
+        </div>
       ) : (
         <ul className="space-y-2">
           {filtered.map((item) => (
@@ -456,6 +505,150 @@ function StockSwitch({
   );
 }
 
+function ViewToggle({
+  mode,
+  onChange,
+}: {
+  mode: ViewMode;
+  onChange: (mode: ViewMode) => void;
+}) {
+  const options: { id: ViewMode; icon: typeof List; label: string }[] = [
+    { id: "list", icon: List, label: "List view" },
+    { id: "grid", icon: LayoutGrid, label: "Grid view" },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="View mode"
+      className="inline-flex rounded-full bg-muted p-0.5"
+    >
+      {options.map(({ id, icon: Icon, label }) => {
+        const isActive = mode === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            aria-pressed={isActive}
+            title={label}
+            aria-label={label}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full transition-all active:scale-95",
+              isActive
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Icon className="h-4 w-4" strokeWidth={2.2} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MenuItemCard({
+  item,
+  categoryLabel,
+  showCategory,
+  onToggleStock,
+  onEdit,
+}: {
+  item: MenuItem;
+  categoryLabel: string;
+  showCategory: boolean;
+  onToggleStock: (value: boolean) => void;
+  onEdit: () => void;
+}) {
+  const inStock = item.inStock !== false;
+  const hasOptions = (item.options?.length ?? 0) > 0;
+
+  return (
+    <div
+      className={cn(
+        "group/card relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-foreground/20",
+        !inStock && "border-l-4 border-l-destructive"
+      )}
+    >
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Edit ${item.name}`}
+        className="relative aspect-[4/3] overflow-hidden bg-muted text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30"
+      >
+        <img
+          src={item.image}
+          alt={item.name}
+          loading="lazy"
+          className={cn(
+            "h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105",
+            !inStock && "grayscale opacity-60"
+          )}
+        />
+        {item.topPick && (
+          <span
+            className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold text-foreground"
+            title="Top pick"
+          >
+            <Sparkles className="h-2.5 w-2.5" strokeWidth={2.5} />
+            Top pick
+          </span>
+        )}
+        {!inStock && (
+          <span className="absolute right-2 top-2 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+            Sold out
+          </span>
+        )}
+      </button>
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className={cn("min-w-0", !inStock && "opacity-70")}>
+          <h3 className="truncate text-sm font-bold leading-tight">
+            {item.name}
+          </h3>
+          {(showCategory || hasOptions) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+              {showCategory && (
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0 font-semibold uppercase tracking-wider text-foreground/70">
+                  {categoryLabel}
+                </span>
+              )}
+              {hasOptions && (
+                <span className="shrink-0 font-medium">
+                  {item.options!.length}{" "}
+                  {item.options!.length === 1 ? "option" : "options"}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+          <span className="text-base font-bold tabular-nums">
+            {formatPrice(item.price)}
+          </span>
+          <div className="flex items-center gap-2">
+            <StockSwitch
+              inStock={inStock}
+              onChange={onToggleStock}
+              itemName={item.name}
+            />
+            <button
+              type="button"
+              onClick={onEdit}
+              title="Edit"
+              aria-label={`Edit ${item.name}`}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
+            >
+              <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ListSkeleton() {
   return (
     <ul className="space-y-2">
@@ -475,6 +668,32 @@ function ListSkeleton() {
         </li>
       ))}
     </ul>
+  );
+}
+
+function GridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="overflow-hidden rounded-2xl border border-border bg-card"
+        >
+          <div className="aspect-[4/3] w-full bg-muted" />
+          <div className="space-y-2 p-3">
+            <div className="h-3.5 w-3/4 rounded bg-muted" />
+            <div className="h-3 w-1/2 rounded bg-muted" />
+            <div className="flex items-center justify-between pt-2">
+              <div className="h-4 w-16 rounded bg-muted" />
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-11 rounded-full bg-muted" />
+                <div className="h-8 w-8 rounded-full bg-muted" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
