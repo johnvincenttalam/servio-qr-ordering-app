@@ -80,14 +80,19 @@ export default function MenuManagerPage() {
     window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
-  // ⌘K / Ctrl+K to focus search
+  // "/" to focus the in-page search. ⌘K is reserved for the global
+  // command palette (mounted at AdminLayout). Skipped while the user
+  // is already typing in an input/textarea so it doesn't hijack a
+  // literal slash typed into another field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      }
+      if (e.key !== "/") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

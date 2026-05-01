@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Trash2, AlertCircle, ImageIcon } from "lucide-react";
+import { Trash2, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { AdminBanner, BannerDraft } from "../useAdminBanners";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
+import { ImageUpload } from "../components/ImageUpload";
 
 interface BannerEditorProps {
   open: boolean;
@@ -140,16 +141,12 @@ export function BannerEditor({
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Image
             </label>
-            <ImagePreview src={draft.image} title={draft.title} subtitle={draft.subtitle} />
-            <Input
-              type="url"
+            <ImageUpload
               value={draft.image}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, image: e.target.value }))
-              }
-              placeholder="https://… or /images/…"
-              required
-              className="mt-2 h-11 rounded-xl"
+              onChange={(url) => setDraft((d) => ({ ...d, image: url }))}
+              prefix="banners"
+              aspectClass="aspect-[16/9]"
+              previewOverlay={<BannerOverlay title={draft.title} subtitle={draft.subtitle} />}
             />
           </div>
 
@@ -271,49 +268,35 @@ export function BannerEditor({
   );
 }
 
-function ImagePreview({
-  src,
+/**
+ * Live preview overlay for the banner editor — renders the title and
+ * subtitle on top of the uploaded image with the same gradient-mask
+ * treatment the customer-side carousel uses, so admins see exactly
+ * what guests will see while they're typing.
+ */
+function BannerOverlay({
   title,
   subtitle,
 }: {
-  src: string;
   title: string | null;
   subtitle: string | null;
 }) {
-  if (!src.trim()) {
-    return (
-      <div className="flex aspect-[16/9] w-full items-center justify-center rounded-2xl border border-dashed border-border bg-muted text-muted-foreground">
-        <ImageIcon className="h-6 w-6" strokeWidth={1.6} />
-      </div>
-    );
-  }
+  if (!title && !subtitle) return null;
   return (
-    <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-border bg-muted">
-      <img
-        src={src}
-        alt=""
-        className="h-full w-full object-cover"
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.opacity = "0.3";
-        }}
-      />
-      {(title || subtitle) && (
-        <>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-            {title && (
-              <h3 className="text-xl font-bold leading-tight tracking-tight">
-                {title}
-              </h3>
-            )}
-            {subtitle && (
-              <p className="mt-1 text-sm font-medium text-white/85">
-                {subtitle}
-              </p>
-            )}
-          </div>
-        </>
-      )}
-    </div>
+    <>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 text-white">
+        {title && (
+          <h3 className="text-xl font-bold leading-tight tracking-tight">
+            {title}
+          </h3>
+        )}
+        {subtitle && (
+          <p className="mt-1 text-sm font-medium text-white/85">
+            {subtitle}
+          </p>
+        )}
+      </div>
+    </>
   );
 }

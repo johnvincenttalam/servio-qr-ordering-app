@@ -18,23 +18,49 @@ import { AdminEmptyState } from "../components/AdminEmptyState";
 import { OrderDetail } from "./OrderDetail";
 
 type StatusFilter = "all" | "active" | AdminOrderStatus;
+type DateRange = "today" | "7d" | "30d" | "all";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Resolve a DateRange to a "show orders newer than this timestamp" cutoff.
+ * "today" snaps to local-midnight so the boundary doesn't shift mid-day;
+ * the rolling ranges are exact ms windows from now; "all" disables the
+ * filter entirely (returns 0 → no order is older than the epoch).
+ */
+function rangeStartTimestamp(range: DateRange, now: number): number {
+  if (range === "all") return 0;
+  if (range === "today") {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  if (range === "7d") return now - 7 * DAY_MS;
+  if (range === "30d") return now - 30 * DAY_MS;
+  return 0;
+}
 
 export default function OrdersPage() {
   const { orders, isLoading, error, setStatus } = useAdminOrders();
   const [filter, setFilter] = useState<StatusFilter>("active");
+  const [dateRange, setDateRange] = useState<DateRange>("today");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // ⌘K / Ctrl+K to focus search
+  // "/" to focus the in-page search. ⌘K is reserved for the global
+  // command palette. Skipped while the user is already typing in an
+  // input/textarea so it doesn't hijack a literal slash.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      }
+      if (e.key !== "/") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -46,9 +72,13 @@ export default function OrdersPage() {
     return () => window.clearInterval(id);
   }, []);
 
+  // Counts respect the date range so the status chips read accurately —
+  // tapping "Active 3" should land you on three orders, not three minus
+  // however many fall outside the selected window.
   const counts = useMemo(() => {
+    const cutoff = rangeStartTimestamp(dateRange, now);
     const out: Record<StatusFilter, number> = {
-      all: orders.length,
+      all: 0,
       active: 0,
       pending: 0,
       preparing: 0,
@@ -57,17 +87,25 @@ export default function OrdersPage() {
       cancelled: 0,
     };
     for (const o of orders) {
+      if (o.createdAt < cutoff) continue;
+      out.all++;
       out[o.status]++;
       if (ADMIN_STATUS_ACTIVE.includes(o.status as AdminOrderStatus)) {
         out.active++;
       }
     }
     return out;
-  }, [orders]);
+  }, [orders, dateRange, now]);
+
+  const rangeStart = useMemo(
+    () => rangeStartTimestamp(dateRange, now),
+    [dateRange, now]
+  );
 
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return orders.filter((o) => {
+      if (o.createdAt < rangeStart) return false;
       if (filter === "active" && !ADMIN_STATUS_ACTIVE.includes(o.status)) {
         return false;
       }
@@ -87,13 +125,16 @@ export default function OrdersPage() {
       }
       return true;
     });
-  }, [orders, filter, searchQuery]);
+  }, [orders, filter, rangeStart, searchQuery]);
 
   const isFiltering =
-    filter !== "active" || searchQuery.trim().length > 0;
+    filter !== "active" ||
+    dateRange !== "today" ||
+    searchQuery.trim().length > 0;
 
   const clearFilters = () => {
     setFilter("active");
+    setDateRange("today");
     setSearchQuery("");
   };
 
@@ -111,7 +152,7 @@ export default function OrdersPage() {
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">Orders</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {orders.length} loaded
+            {counts.all} {counts.all === 1 ? "order" : "orders"}
             {counts.active > 0 && (
               <>
                 {" · "}
@@ -140,7 +181,16 @@ export default function OrdersPage() {
         searchInputRef={searchInputRef}
       />
 
-      <StatusFilters filter={filter} onChange={setFilter} counts={counts} />
+      {/* Filters row: status chips scroll horizontally inside the left
+          flex slot while the date-range toggle stays anchored right.
+          Mirrors the MenuManager pattern so the toggle never scrolls
+          off the viewport on mobile. */}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1 pr-3 [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
+          <StatusFilters filter={filter} onChange={setFilter} counts={counts} />
+        </div>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
+      </div>
 
       {isLoading ? (
         <ListSkeleton />
@@ -266,6 +316,48 @@ function StatusFilters({
             >
               {count}
             </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DateRangeFilter({
+  value,
+  onChange,
+}: {
+  value: DateRange;
+  onChange: (range: DateRange) => void;
+}) {
+  const options: { id: DateRange; label: string }[] = [
+    { id: "today", label: "Today" },
+    { id: "7d", label: "7d" },
+    { id: "30d", label: "30d" },
+    { id: "all", label: "All" },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Date range"
+      className="inline-flex shrink-0 rounded-full bg-muted p-0.5"
+    >
+      {options.map(({ id, label }) => {
+        const isActive = value === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            aria-pressed={isActive}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95",
+              isActive
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
           </button>
         );
       })}

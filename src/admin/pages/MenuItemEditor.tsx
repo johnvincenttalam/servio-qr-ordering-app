@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Trash2, Sparkles, AlertCircle, ImageIcon, ChevronDown } from "lucide-react";
+import { Trash2, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import type { Category, MenuCategory, MenuItem } from "@/types";
 import type { MenuItemDraft } from "../useAdminMenu";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
+import { ImageUpload } from "../components/ImageUpload";
 
 interface MenuItemEditorProps {
   open: boolean;
@@ -169,16 +170,11 @@ export function MenuItemEditor({
           )}
 
           <Field label="Image">
-            <ImagePreview src={draft.image} />
-            <Input
-              type="url"
+            <ImageUpload
               value={draft.image}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, image: e.target.value }))
-              }
-              placeholder="https://… or /images/…"
-              required
-              className="mt-2 h-11 rounded-xl"
+              onChange={(url) => setDraft((d) => ({ ...d, image: url }))}
+              prefix="items"
+              aspectClass="aspect-[4/3]"
             />
           </Field>
 
@@ -453,24 +449,3 @@ function Switch({
   );
 }
 
-function ImagePreview({ src }: { src: string }) {
-  if (!src.trim()) {
-    return (
-      <div className="flex aspect-[16/9] w-full items-center justify-center rounded-xl border border-dashed border-border bg-muted text-muted-foreground">
-        <ImageIcon className="h-6 w-6" strokeWidth={1.6} />
-      </div>
-    );
-  }
-  return (
-    <div className="aspect-[16/9] w-full overflow-hidden rounded-xl border border-border bg-muted">
-      <img
-        src={src}
-        alt=""
-        className="h-full w-full object-cover"
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.opacity = "0.3";
-        }}
-      />
-    </div>
-  );
-}
