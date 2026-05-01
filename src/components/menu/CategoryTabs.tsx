@@ -1,22 +1,7 @@
 import { useRef } from "react";
-import {
-  LayoutGrid,
-  UtensilsCrossed,
-  CupSoda,
-  IceCream,
-  Salad,
-  type LucideIcon,
-} from "lucide-react";
+import { LayoutGrid, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MenuCategory } from "@/types";
-
-const CATEGORY_ICONS: Record<MenuCategory | "all", LucideIcon> = {
-  all: LayoutGrid,
-  meals: UtensilsCrossed,
-  drinks: CupSoda,
-  desserts: IceCream,
-  sides: Salad,
-};
 
 interface CategoryTabsProps {
   categories: { id: MenuCategory; label: string }[];
@@ -47,7 +32,10 @@ export function CategoryTabs({
         {tabs.map((cat) => {
           const isActive = activeCategory === cat.id;
           const wasJustTapped = lastTappedRef.current === cat.id;
-          const Icon = CATEGORY_ICONS[cat.id];
+          // Categories are admin-defined now, so a per-id icon map can't
+          // cover them. Use LayoutGrid for the special "All" tab and a
+          // generic Tag for everything else.
+          const Icon = cat.id === "all" ? LayoutGrid : Tag;
           return (
             <button
               key={cat.id}

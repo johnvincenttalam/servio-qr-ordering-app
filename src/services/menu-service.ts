@@ -1,5 +1,4 @@
 import { supabase } from "@/lib/supabase";
-import { CATEGORY_LABELS } from "@/constants";
 import type {
   MenuItem,
   MenuCategory,
@@ -46,12 +45,23 @@ export async function fetchMenu(): Promise<MenuItem[]> {
   return (data ?? []).map(rowToItem);
 }
 
+interface CategoryRow {
+  id: string;
+  label: string;
+}
+
 export async function fetchCategories(): Promise<
   { id: MenuCategory; label: string }[]
 > {
-  return (Object.entries(CATEGORY_LABELS) as [MenuCategory, string][]).map(
-    ([id, label]) => ({ id, label })
-  );
+  // RLS hides archived rows from anonymous customers, so the order here
+  // is just position — no need for a separate filter.
+  const { data, error } = await supabase
+    .from("categories")
+    .select("id, label")
+    .is("archived_at", null)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as CategoryRow[];
 }
 
 export async function fetchMenuItem(

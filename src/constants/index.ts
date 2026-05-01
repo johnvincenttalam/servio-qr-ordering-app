@@ -1,14 +1,10 @@
 import { CheckCircle2, ChefHat, Clock, type LucideIcon } from "lucide-react";
-import type { MenuCategory, OrderStatus } from "@/types";
+import type { OrderStatus } from "@/types";
 
 export const CURRENCY_SYMBOL = "₱";
 
-export const CATEGORY_LABELS: Record<MenuCategory, string> = {
-  meals: "Meals",
-  drinks: "Drinks",
-  desserts: "Desserts",
-  sides: "Sides",
-};
+// Category labels used to live here as a fixed map. They're now sourced
+// from the public.categories table — see useMenu / useAdminCategories.
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "Pending",

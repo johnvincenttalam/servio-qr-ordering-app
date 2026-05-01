@@ -10,15 +10,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CATEGORY_LABELS } from "@/constants";
 import { cn } from "@/lib/utils";
-import type { MenuCategory, MenuItem } from "@/types";
+import type { Category, MenuCategory, MenuItem } from "@/types";
 import type { MenuItemDraft } from "../useAdminMenu";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 
 interface MenuItemEditorProps {
   open: boolean;
   item: MenuItem | null; // null = create new
+  /** Live, non-archived categories for the picker. */
+  categories: Category[];
   onClose: () => void;
   onSave: (draft: MenuItemDraft) => Promise<void>;
   onArchive?: () => Promise<void>;
@@ -28,7 +29,10 @@ const EMPTY_DRAFT: MenuItemDraft = {
   name: "",
   price: 0,
   image: "",
-  category: "meals",
+  // Filled in from the first available category at mount time. The
+  // empty string is a placeholder that the effect below replaces before
+  // the form ever submits.
+  category: "",
   description: "",
   topPick: false,
   inStock: true,
@@ -37,6 +41,7 @@ const EMPTY_DRAFT: MenuItemDraft = {
 export function MenuItemEditor({
   open,
   item,
+  categories,
   onClose,
   onSave,
   onArchive,
@@ -69,16 +74,22 @@ export function MenuItemEditor({
       });
       setPriceText(String(item.price));
     } else {
-      setDraft(EMPTY_DRAFT);
+      // For new items, default to the first available category so
+      // the picker isn't empty.
+      setDraft({
+        ...EMPTY_DRAFT,
+        category: categories[0]?.id ?? "",
+      });
       setPriceText("");
     }
     setError(null);
-  }, [open, item]);
+  }, [open, item, categories]);
 
   const isValid =
     draft.name.trim().length > 0 &&
     draft.description.trim().length > 0 &&
     draft.image.trim().length > 0 &&
+    draft.category.trim().length > 0 &&
     Number.isFinite(draft.price) &&
     draft.price >= 0;
 
@@ -211,6 +222,7 @@ export function MenuItemEditor({
             </Field>
             <Field label="Category">
               <CategoryPicker
+                categories={categories}
                 value={draft.category}
                 onChange={(c) => setDraft((d) => ({ ...d, category: c }))}
               />
@@ -363,23 +375,28 @@ function Field({
 }
 
 function CategoryPicker({
+  categories,
   value,
   onChange,
 }: {
+  categories: Category[];
   value: MenuCategory;
   onChange: (value: MenuCategory) => void;
 }) {
-  const entries = Object.entries(CATEGORY_LABELS) as [MenuCategory, string][];
   return (
     <div className="relative">
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value as MenuCategory)}
-        className="h-11 w-full appearance-none rounded-xl border border-border bg-card pl-3 pr-10 text-sm font-medium text-foreground transition-colors hover:border-foreground/30 focus:border-foreground/40 focus:outline-none"
+        onChange={(e) => onChange(e.target.value)}
+        disabled={categories.length === 0}
+        className="h-11 w-full appearance-none rounded-xl border border-border bg-card pl-3 pr-10 text-sm font-medium text-foreground transition-colors hover:border-foreground/30 focus:border-foreground/40 focus:outline-none disabled:opacity-50"
       >
-        {entries.map(([id, label]) => (
-          <option key={id} value={id}>
-            {label}
+        {categories.length === 0 && (
+          <option value="">No categories yet</option>
+        )}
+        {categories.map((cat) => (
+          <option key={cat.id} value={cat.id}>
+            {cat.label}
           </option>
         ))}
       </select>

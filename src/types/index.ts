@@ -56,7 +56,19 @@ export interface Order {
   createdAt: number;
 }
 
-export type MenuCategory = "meals" | "drinks" | "desserts" | "sides";
+/**
+ * Category id. Now a string (the row's primary key) instead of a fixed
+ * enum, since admins can add their own categories at runtime. Kept as
+ * a named alias so callsite intent stays clear.
+ */
+export type MenuCategory = string;
+
+export interface Category {
+  id: string;
+  label: string;
+  position: number;
+  archivedAt?: number | null;
+}
 
 export interface PromoBanner {
   id: string;

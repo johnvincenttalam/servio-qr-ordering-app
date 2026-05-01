@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import type { MenuCategory, MenuItem, MenuOption } from "@/types";
+import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import type { Category, MenuCategory, MenuItem, MenuOption } from "@/types";
 
 interface MenuItemRow {
   id: string;
@@ -41,8 +42,26 @@ export interface MenuItemDraft {
   options?: MenuOption[];
 }
 
+interface CategoryRow {
+  id: string;
+  label: string;
+  position: number;
+  archived_at: string | null;
+}
+
+function rowToCategory(row: CategoryRow): Category {
+  return {
+    id: row.id,
+    label: row.label,
+    position: row.position,
+    archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
+  };
+}
+
 interface UseAdminMenuReturn {
   items: MenuItem[];
+  /** Active (non-archived) categories, sorted by position. */
+  categories: Category[];
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -60,27 +79,40 @@ function generateItemId(category: MenuCategory): string {
 
 export function useAdminMenu(): UseAdminMenuReturn {
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    const { data, error: queryError } = await supabase
-      .from("menu_items")
-      .select(
-        "id, name, price, image, category, description, top_pick, in_stock, options, position"
-      )
-      .is("archived_at", null)
-      .order("category", { ascending: true })
-      .order("position", { ascending: true });
+    // Categories drive the filter chips and the item-editor picker, so
+    // they need to load alongside the items themselves. One round trip
+    // via Promise.all instead of two sequential fetches.
+    const [itemsRes, catsRes] = await Promise.all([
+      supabase
+        .from("menu_items")
+        .select(
+          "id, name, price, image, category, description, top_pick, in_stock, options, position"
+        )
+        .is("archived_at", null)
+        .order("category", { ascending: true })
+        .order("position", { ascending: true }),
+      supabase
+        .from("categories")
+        .select("id, label, position, archived_at")
+        .is("archived_at", null)
+        .order("position", { ascending: true }),
+    ]);
 
-    if (queryError) {
-      console.error("[admin/menu] fetch failed:", queryError);
-      setError(queryError.message);
+    if (itemsRes.error || catsRes.error) {
+      const e = itemsRes.error ?? catsRes.error;
+      console.error("[admin/menu] fetch failed:", e);
+      setError(e?.message ?? "Couldn't load menu");
       return;
     }
 
     setError(null);
-    setItems(((data ?? []) as MenuItemRow[]).map(rowToItem));
+    setItems(((itemsRes.data ?? []) as MenuItemRow[]).map(rowToItem));
+    setCategories(((catsRes.data ?? []) as CategoryRow[]).map(rowToCategory));
   }, []);
 
   useEffect(() => {
@@ -93,6 +125,13 @@ export function useAdminMenu(): UseAdminMenuReturn {
       cancelled = true;
     };
   }, [refetch]);
+
+  // Realtime: pick up category renames / new categories without a reload.
+  useRealtimeTables({
+    channel: "admin-menu-categories",
+    tables: ["categories"],
+    onChange: () => refetch(),
+  });
 
   const setInStock = useCallback(
     async (id: string, inStock: boolean) => {
@@ -212,6 +251,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
 
   return {
     items,
+    categories,
     isLoading,
     error,
     refetch,

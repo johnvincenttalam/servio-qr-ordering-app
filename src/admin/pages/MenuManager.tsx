@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles, AlertCircle, Pencil, Plus, Search, X } from "lucide-react";
-import { CATEGORY_LABELS } from "@/constants";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/utils";
 import { useAdminMenu } from "../useAdminMenu";
 import { MenuItemEditor } from "./MenuItemEditor";
-import type { MenuItem, MenuCategory } from "@/types";
+import type { Category, MenuItem, MenuCategory } from "@/types";
 
 type DrawerState =
   | { mode: "edit"; item: MenuItem }
@@ -17,6 +16,7 @@ type CategoryFilter = MenuCategory | "all";
 export default function MenuManagerPage() {
   const {
     items,
+    categories,
     isLoading,
     error,
     setInStock,
@@ -24,6 +24,14 @@ export default function MenuManagerPage() {
     createItem,
     archiveItem,
   } = useAdminMenu();
+
+  // Quick lookup so item rows can render their category's label without
+  // repeating the find. Falls back to the raw id if a category was
+  // archived between the row's creation and now.
+  const labelFor = useMemo(() => {
+    const map = new Map(categories.map((c) => [c.id, c.label]));
+    return (id: string) => map.get(id) ?? id;
+  }, [categories]);
   const [filter, setFilter] = useState<CategoryFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [soldOutOnly, setSoldOutOnly] = useState(false);
@@ -120,6 +128,7 @@ export default function MenuManagerPage() {
       />
 
       <CategoryFilters
+        categories={categories}
         filter={filter}
         onChange={setFilter}
         count={items.length}
@@ -142,6 +151,7 @@ export default function MenuManagerPage() {
             <MenuItemRow
               key={item.id}
               item={item}
+              categoryLabel={labelFor(item.category)}
               showCategory={filter === "all"}
               onToggleStock={(value) => setInStock(item.id, value)}
               onEdit={() => setDrawer({ mode: "edit", item })}
@@ -153,6 +163,7 @@ export default function MenuManagerPage() {
       <MenuItemEditor
         open={drawer !== null}
         item={drawer?.mode === "edit" ? drawer.item : null}
+        categories={categories}
         onClose={() => setDrawer(null)}
         onSave={async (draft) => {
           if (drawer?.mode === "edit") {
@@ -262,11 +273,13 @@ function SoldOutChip({
 }
 
 function CategoryFilters({
+  categories,
   filter,
   onChange,
   count,
   trailing,
 }: {
+  categories: Category[];
   filter: CategoryFilter;
   onChange: (filter: CategoryFilter) => void;
   count: number;
@@ -274,9 +287,7 @@ function CategoryFilters({
 }) {
   const tabs: { id: CategoryFilter; label: string }[] = [
     { id: "all", label: `All (${count})` },
-    ...(Object.entries(CATEGORY_LABELS) as [MenuCategory, string][]).map(
-      ([id, label]) => ({ id, label })
-    ),
+    ...categories.map((c) => ({ id: c.id, label: c.label })),
   ];
 
   return (
@@ -310,11 +321,13 @@ function CategoryFilters({
 
 function MenuItemRow({
   item,
+  categoryLabel,
   showCategory,
   onToggleStock,
   onEdit,
 }: {
   item: MenuItem;
+  categoryLabel: string;
   showCategory: boolean;
   onToggleStock: (value: boolean) => void;
   onEdit: () => void;
@@ -366,7 +379,7 @@ function MenuItemRow({
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
             {showCategory && (
               <span className="shrink-0 rounded-full bg-muted px-1.5 py-0 font-semibold uppercase tracking-wider text-foreground/70">
-                {CATEGORY_LABELS[item.category]}
+                {categoryLabel}
               </span>
             )}
             {hasOptions && (
