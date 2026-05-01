@@ -1,7 +1,25 @@
 import { CURRENCY_SYMBOL } from "@/constants";
 
+/**
+ * Mutable module-level currency. Defaults to the build-time constant
+ * (so render before settings hydrate looks correct), and gets bumped
+ * by SettingsBoot once the live restaurant_settings row arrives.
+ *
+ * The mutability is deliberate: formatPrice gets called from non-React
+ * places (toast strings inside hooks, the audit summary trigger
+ * couldn't reach a React context anyway) so a single shared symbol
+ * is simpler than threading a context through every callsite.
+ */
+let _currencySymbol = CURRENCY_SYMBOL;
+
+export function setCurrencySymbol(symbol: string): void {
+  if (symbol && symbol.trim().length > 0) {
+    _currencySymbol = symbol;
+  }
+}
+
 export function formatPrice(amount: number): string {
-  return `${CURRENCY_SYMBOL}${amount.toFixed(2)}`;
+  return `${_currencySymbol}${amount.toFixed(2)}`;
 }
 
 export function formatRelative(timestamp: number, now: number): string {

@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import type { AdminTable } from "../useAdminTables";
 
@@ -41,6 +42,8 @@ export function TableQrModal({
   onClose,
   onRotate,
 }: TableQrModalProps) {
+  const { settings } = useRestaurantSettings();
+  const brandName = settings.name;
   const [svgMarkup, setSvgMarkup] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmingRotate, setConfirmingRotate] = useState(false);
@@ -124,11 +127,12 @@ export function TableQrModal({
       return;
     }
     const safeLabel = (table.label || "").replace(/</g, "&lt;");
+    const safeBrand = brandName.replace(/</g, "&lt;");
     win.document.write(`<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>SERVIO · ${table.id}</title>
+  <title>${safeBrand} · ${table.id}</title>
   <style>
     @page { margin: 0; size: 80mm 110mm; }
     html, body { margin: 0; padding: 0; }
@@ -177,7 +181,7 @@ export function TableQrModal({
 </head>
 <body>
   <div class="card">
-    <div class="brand">SERVIO</div>
+    <div class="brand">${safeBrand}</div>
     <div class="qr">${svgMarkup}</div>
     <div class="id">${table.id}</div>
     <div class="label">${safeLabel}</div>
@@ -229,7 +233,7 @@ export function TableQrModal({
                 <span className="flex h-4 w-4 items-center justify-center rounded-md bg-foreground text-background">
                   <Utensils className="h-2.5 w-2.5" strokeWidth={2.6} />
                 </span>
-                SERVIO
+                <span className="truncate">{brandName}</span>
               </div>
 
               <div className="flex aspect-square w-[160px] items-center justify-center">

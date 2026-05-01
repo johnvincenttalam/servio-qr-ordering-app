@@ -1,8 +1,10 @@
 import { QrCode, AlertCircle, Utensils } from "lucide-react";
 import { useTableValidation } from "@/hooks/useTableValidation";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 
 export default function HomePage() {
   const { error } = useTableValidation();
+  const { settings } = useRestaurantSettings();
 
   if (error) {
     return (
@@ -30,7 +32,7 @@ export default function HomePage() {
         <Utensils className="h-7 w-7 text-background" strokeWidth={2.2} />
       </div>
       <div className="space-y-1.5">
-        <h1 className="text-2xl font-bold tracking-tight">SERVIO</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{settings.name}</h1>
         <p className="text-sm text-muted-foreground">Setting up your table…</p>
       </div>
       <div className="flex gap-1.5">

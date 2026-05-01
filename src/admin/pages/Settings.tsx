@@ -176,7 +176,7 @@ function IdentitySection({
       icon={Store}
       tone="info"
       title="Restaurant identity"
-      description="What your venue is called and which currency you use. Some surfaces still read these from constants and will pick up the new values after a redeploy."
+      description="What your venue is called and which currency you use. Updates apply across customer + admin surfaces; push notifications keep the build-time default until the service worker is regenerated on the next deploy."
     >
       <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
         <Field label="Name">

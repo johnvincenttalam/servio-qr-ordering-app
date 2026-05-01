@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Menu, Search, Utensils } from "lucide-react";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { Sidebar } from "./components/Sidebar";
 import { CommandPalette } from "./components/CommandPalette";
 
@@ -8,6 +9,7 @@ export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
+  const { settings } = useRestaurantSettings();
 
   // Auto-close the drawer whenever the route changes — covers any path
   // that's reached without going through a sidebar link click (e.g. a
@@ -54,8 +56,8 @@ export function AdminLayout() {
             <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-foreground text-background">
               <Utensils className="h-3.5 w-3.5" strokeWidth={2.5} />
             </span>
-            <span className="text-sm font-bold tracking-tight">
-              SERVIO Admin
+            <span className="truncate text-sm font-bold tracking-tight">
+              {settings.name} Admin
             </span>
           </Link>
           {/* Mobile entry point for the palette — keyboard ⌘K isn't an

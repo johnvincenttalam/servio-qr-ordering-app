@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import type { AdminBanner, BannerDraft } from "../useAdminBanners";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import { ImageUpload } from "../components/ImageUpload";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 
 interface BannerEditorProps {
   open: boolean;
@@ -38,6 +39,7 @@ export function BannerEditor({
   onDelete,
 }: BannerEditorProps) {
   const isNew = banner === null;
+  const { settings } = useRestaurantSettings();
   const [draft, setDraft] = useState<BannerDraft>(EMPTY_DRAFT);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -162,7 +164,7 @@ export function BannerEditor({
               onChange={(e) =>
                 setDraft((d) => ({ ...d, title: e.target.value }))
               }
-              placeholder="Welcome to SERVIO"
+              placeholder={`Welcome to ${settings.name}`}
               className="h-11 rounded-xl"
             />
           </div>

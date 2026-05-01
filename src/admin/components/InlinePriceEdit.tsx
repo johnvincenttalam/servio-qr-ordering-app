@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Pencil } from "lucide-react";
-import { CURRENCY_SYMBOL } from "@/constants";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/utils";
 
@@ -32,6 +32,7 @@ export function InlinePriceEdit({
   className,
   formatter = formatPrice,
 }: InlinePriceEditProps) {
+  const { settings } = useRestaurantSettings();
   const [mode, setMode] = useState<"view" | "edit" | "saving">("view");
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -117,7 +118,7 @@ export function InlinePriceEdit({
       )}
     >
       <span className="text-xs text-muted-foreground" aria-hidden>
-        {CURRENCY_SYMBOL}
+        {settings.currencySymbol}
       </span>
       <input
         ref={inputRef}

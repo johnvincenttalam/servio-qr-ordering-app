@@ -22,6 +22,7 @@ import {
 import type { StaffRole } from "@/auth/AuthProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { useAdminOrderPulse } from "../useAdminOrderPulse";
 
 interface NavItem {
@@ -114,6 +115,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
   const { pendingCount, soundEnabled, toggleSound } = useAdminOrderPulse();
+  const { settings } = useRestaurantSettings();
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -169,9 +171,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-foreground text-background">
               <Utensils className="h-4 w-4" strokeWidth={2.5} />
             </span>
-            <div>
-              <p className="text-sm font-bold leading-none tracking-tight">
-                SERVIO
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold leading-none tracking-tight">
+                {settings.name}
               </p>
               <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Admin

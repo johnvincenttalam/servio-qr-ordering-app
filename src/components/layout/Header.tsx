@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { getOrderHistory } from "@/lib/orderHistory";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
 
 export function Header() {
@@ -16,6 +17,7 @@ export function Header() {
   const tableId = useAppStore((s) => s.tableId);
   const currentOrderId = useAppStore((s) => s.currentOrderId);
   const itemCount = useAppStore((s) => s.getCartItemCount());
+  const { settings } = useRestaurantSettings();
   const [waiterOpen, setWaiterOpen] = useState(false);
 
   // History button only renders when there's at least one past order
@@ -37,8 +39,8 @@ export function Header() {
             <Utensils className="h-4 w-4" strokeWidth={2.5} />
           </span>
           <div className="min-w-0">
-            <p className="text-lg font-extrabold leading-none tracking-tight">
-              SERVIO
+            <p className="truncate text-lg font-extrabold leading-none tracking-tight">
+              {settings.name}
             </p>
             {tableId && (
               <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">

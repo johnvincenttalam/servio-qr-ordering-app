@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { Input } from "@/components/ui/input";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { AuthShell } from "../components/AuthShell";
 
 interface LocationState {
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, role, passwordTemporary, isLoading, signIn } = useAuth();
+  const { settings } = useRestaurantSettings();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -69,7 +71,7 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="SERVIO Admin"
+      title={`${settings.name} Admin`}
       subtitle="Sign in to manage the kitchen and menu."
     >
       <form

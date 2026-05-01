@@ -12,6 +12,7 @@ import {
 import { useAppStore } from "@/store/useAppStore";
 import { useOrderStatus } from "@/hooks/useOrderStatus";
 import { useOrderEta } from "@/hooks/useOrderEta";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_DESCRIPTIONS,
@@ -67,6 +68,7 @@ export default function OrderStatusPage() {
   const effectiveOrderId = queryOrderId ?? currentOrderId;
 
   const { order, isLoading } = useOrderStatus(effectiveOrderId);
+  const { settings } = useRestaurantSettings();
   const [callSheetOpen, setCallSheetOpen] = useState(false);
   // Show ETA only while the kitchen still has work to do — once the
   // order is ready or served, the wait-time hint is misleading.
@@ -156,7 +158,7 @@ export default function OrderStatusPage() {
             Enjoy your meal
           </h3>
           <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">
-            Your order has been served. Thanks for ordering with SERVIO!
+            Your order has been served. Thanks for ordering with {settings.name}!
           </p>
           <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-semibold text-foreground">
             <Heart className="h-3 w-3 text-destructive" strokeWidth={2.4} />

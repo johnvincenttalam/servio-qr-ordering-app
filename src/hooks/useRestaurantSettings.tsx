@@ -1,4 +1,10 @@
-import { useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 
@@ -46,18 +52,30 @@ function rowToSettings(row: RestaurantSettingsRow): RestaurantSettings {
   };
 }
 
-interface UseRestaurantSettingsReturn {
+interface RestaurantSettingsContextValue {
   settings: RestaurantSettings;
   isLoading: boolean;
 }
 
+const RestaurantSettingsContext =
+  createContext<RestaurantSettingsContextValue | null>(null);
+
 /**
- * Read-only hook that returns the current restaurant settings. Subscribes
- * to postgres_changes on the singleton row so an admin flipping
- * "open for orders" propagates to all open customer tabs without a
- * manual refresh. Falls back to DEFAULT_RESTAURANT_SETTINGS while loading.
+ * Provider that owns the single Supabase realtime subscription and
+ * fetch for restaurant_settings. Multiple components can call
+ * useRestaurantSettings() — they all read from this provider's context
+ * instead of each opening a new channel (which Supabase rejects with
+ * "cannot add postgres_changes callbacks after subscribe()").
+ *
+ * Mounted at the App root so both customer routes (which need
+ * openForOrders / requireCustomerName) and admin routes (which need
+ * the full settings) share one subscription.
  */
-export function useRestaurantSettings(): UseRestaurantSettingsReturn {
+export function RestaurantSettingsProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [settings, setSettings] = useState<RestaurantSettings>(
     DEFAULT_RESTAURANT_SETTINGS
   );
@@ -96,5 +114,27 @@ export function useRestaurantSettings(): UseRestaurantSettingsReturn {
     },
   });
 
-  return { settings, isLoading };
+  return (
+    <RestaurantSettingsContext.Provider value={{ settings, isLoading }}>
+      {children}
+    </RestaurantSettingsContext.Provider>
+  );
+}
+
+interface UseRestaurantSettingsReturn {
+  settings: RestaurantSettings;
+  isLoading: boolean;
+}
+
+/**
+ * Read the current restaurant settings from the provider. Falls back
+ * to DEFAULT_RESTAURANT_SETTINGS when called outside the provider so
+ * tests / orphan renders don't crash.
+ */
+export function useRestaurantSettings(): UseRestaurantSettingsReturn {
+  const ctx = useContext(RestaurantSettingsContext);
+  if (!ctx) {
+    return { settings: DEFAULT_RESTAURANT_SETTINGS, isLoading: false };
+  }
+  return ctx;
 }
