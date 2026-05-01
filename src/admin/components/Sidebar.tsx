@@ -8,6 +8,7 @@ import {
   Users,
   QrCode,
   ChefHat,
+  KeyRound,
   LogOut,
   Utensils,
   ExternalLink,
@@ -212,10 +213,25 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               )}
             </div>
           </div>
+          <NavLink
+            to="/admin/reset-password"
+            onClick={onClose}
+            className={({ isActive }) =>
+              cn(
+                "mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-colors active:scale-[0.98]",
+                isActive
+                  ? "bg-foreground text-background"
+                  : "text-foreground/80 hover:bg-muted hover:text-foreground"
+              )
+            }
+          >
+            <KeyRound className="h-3.5 w-3.5" strokeWidth={2.2} />
+            Change password
+          </NavLink>
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
           >
             <LogOut className="h-3.5 w-3.5" strokeWidth={2.2} />
             Sign out

@@ -13,9 +13,11 @@ export type StaffRole = "admin" | "kitchen" | "waiter";
 export interface StaffMember {
   userId: string;
   email: string;
+  username: string | null;
   role: StaffRole;
   displayName: string | null;
   avatarUrl: string | null;
+  passwordTemporary: boolean;
   createdAt: number;
   lastSignInAt: number | null;
 }
@@ -23,20 +25,49 @@ export interface StaffMember {
 interface StaffRow {
   user_id: string;
   email: string;
+  username: string | null;
   role: StaffRole;
   display_name: string | null;
   avatar_url: string | null;
+  password_temporary: boolean | null;
   created_at: string;
   last_sign_in_at: string | null;
+}
+
+/**
+ * supabase-js wraps a non-2xx edge response in a FunctionsHttpError
+ * with the generic message "Edge Function returned a non-2xx status
+ * code". The actual response body — where our { error } field lives —
+ * is on the .context Response object. This pulls it out so the UI can
+ * show the real reason ("Username already exists", etc.).
+ */
+async function unpackEdgeError(
+  err: unknown
+): Promise<{ ok: false; message: string }> {
+  try {
+    const response = (err as { context?: Response }).context;
+    if (response) {
+      const body = await response.clone().json();
+      if (body?.error) return { ok: false, message: String(body.error) };
+    }
+  } catch {
+    // fall through to the generic message
+  }
+  return {
+    ok: false,
+    message: err instanceof Error ? err.message : "Edge function failed",
+  };
 }
 
 function rowToMember(row: StaffRow): StaffMember {
   return {
     userId: row.user_id,
     email: row.email,
+    username: row.username,
     role: row.role,
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
+    passwordTemporary: row.password_temporary ?? false,
     createdAt: new Date(row.created_at).getTime(),
     lastSignInAt: row.last_sign_in_at
       ? new Date(row.last_sign_in_at).getTime()
@@ -44,15 +75,28 @@ function rowToMember(row: StaffRow): StaffMember {
   };
 }
 
-export interface InviteParams {
-  email: string;
+export interface CreateStaffParams {
+  email?: string;
+  username?: string;
   role: StaffRole;
   displayName?: string;
+  /** Optional admin-supplied password; the server generates one when omitted. */
+  password?: string;
 }
 
-export interface InviteResult {
+export interface CreateStaffResult {
   ok: boolean;
   message?: string;
+  /** The just-set password — show to the admin once and never store. */
+  password?: string;
+  email?: string;
+  username?: string | null;
+}
+
+export interface ResetPasswordResult {
+  ok: boolean;
+  message?: string;
+  password?: string;
 }
 
 interface UseAdminStaffReturn {
@@ -60,7 +104,8 @@ interface UseAdminStaffReturn {
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  invite: (params: InviteParams) => Promise<InviteResult>;
+  createStaff: (params: CreateStaffParams) => Promise<CreateStaffResult>;
+  resetPassword: (userId: string) => Promise<ResetPasswordResult>;
   setRole: (userId: string, role: StaffRole) => Promise<void>;
   setDisplayName: (userId: string, name: string | null) => Promise<void>;
   setAvatar: (userId: string, file: File) => Promise<void>;
@@ -101,41 +146,70 @@ export function useAdminStaff(): UseAdminStaffReturn {
     onChange: () => refetch(),
   });
 
-  const invite = useCallback<UseAdminStaffReturn["invite"]>(
+  const createStaff = useCallback<UseAdminStaffReturn["createStaff"]>(
     async (params) => {
-      // Tell the edge function where the invitee should land after
-      // accepting the email link. /admin/reset-password forces them to
-      // pick a password before continuing — without it they'd be locked
-      // out the moment their invite session expired or they signed out
-      // (the auth.users row has a NULL password until they set one).
-      const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/admin/reset-password`
-          : undefined;
-
-      const { data, error: invokeError } = await supabase.functions.invoke<
-        { ok: boolean; user_id?: string; error?: string }
-      >("admin-invite", {
+      const { data, error: invokeError } = await supabase.functions.invoke<{
+        ok: boolean;
+        user_id?: string;
+        email?: string;
+        username?: string | null;
+        password?: string;
+        error?: string;
+      }>("admin-create-staff", {
         body: {
           email: params.email,
+          username: params.username,
           role: params.role,
           displayName: params.displayName,
-          redirectTo,
+          password: params.password,
         },
       });
 
       if (invokeError) {
-        return {
-          ok: false,
-          message: invokeError.message ?? "Couldn't reach the invite service",
-        };
+        return await unpackEdgeError(invokeError);
       }
       if (data && !data.ok) {
-        return { ok: false, message: data.error ?? "Invite failed" };
+        return { ok: false, message: data.error ?? "Couldn't create staff" };
+      }
+      if (!data?.password) {
+        return { ok: false, message: "Server didn't return a password" };
       }
 
       await refetch();
-      return { ok: true };
+      return {
+        ok: true,
+        password: data.password,
+        email: data.email,
+        username: data.username ?? null,
+      };
+    },
+    [refetch]
+  );
+
+  const resetPassword = useCallback<UseAdminStaffReturn["resetPassword"]>(
+    async (userId) => {
+      const { data, error: invokeError } = await supabase.functions.invoke<{
+        ok: boolean;
+        password?: string;
+        error?: string;
+      }>("admin-reset-password", {
+        body: { user_id: userId },
+      });
+
+      if (invokeError) {
+        return await unpackEdgeError(invokeError);
+      }
+      if (data && !data.ok) {
+        return { ok: false, message: data.error ?? "Reset failed" };
+      }
+      if (!data?.password) {
+        return { ok: false, message: "Server didn't return a password" };
+      }
+
+      // password_temporary flips back to true on the server; the row
+      // refresh below will pick that up.
+      await refetch();
+      return { ok: true, password: data.password };
     },
     [refetch]
   );
@@ -273,7 +347,8 @@ export function useAdminStaff(): UseAdminStaffReturn {
     isLoading,
     error,
     refetch,
-    invite,
+    createStaff,
+    resetPassword,
     setRole,
     setDisplayName,
     setAvatar,

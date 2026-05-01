@@ -50,15 +50,28 @@ export default function ResetPasswordPage() {
       password,
     });
 
-    setSubmitting(false);
     if (updateError) {
+      setSubmitting(false);
       setError(updateError.message);
       return;
     }
 
-    // Password is set — drop them on the dashboard. AuthProvider already
-    // has a live session so AuthGuard waves them through.
-    navigate("/admin", { replace: true });
+    // Clear the password_temporary flag via the security-definer RPC
+    // so future logins go straight to the dashboard. Failure here is
+    // not fatal — the next login will prompt them again, which is
+    // annoying but not broken.
+    const { error: clearError } = await supabase.rpc(
+      "clear_password_temporary"
+    );
+    if (clearError) {
+      console.warn("[reset] couldn't clear temp flag:", clearError);
+    }
+
+    setSubmitting(false);
+    // Force a hard navigate so AuthProvider re-fetches the staff row
+    // and picks up password_temporary = false. Without this the cached
+    // value would still send them back here on next protected route.
+    window.location.assign("/admin");
   };
 
   if (authLoading || !user) {

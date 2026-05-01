@@ -103,4 +103,22 @@ $$;
 grant execute on function public.lookup_email_by_username(text)
   to anon, authenticated;
 
+-- ─────────────────────────────────────────────────────────────────────────
+-- 4. clear_password_temporary() — security-definer RPC the user calls
+--    after picking a new password on /admin/reset-password. The staff
+--    UPDATE policy only allows admins to write, so a regular user can't
+--    clear the flag with a direct UPDATE — they go through this function
+--    instead. Function only ever touches the caller's own row.
+-- ─────────────────────────────────────────────────────────────────────────
+create or replace function public.clear_password_temporary()
+returns void
+language sql security definer set search_path = public
+as $$
+  update public.staff
+     set password_temporary = false
+   where user_id = auth.uid()
+$$;
+
+grant execute on function public.clear_password_temporary() to authenticated;
+
 notify pgrst, 'reload schema';

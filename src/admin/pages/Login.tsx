@@ -12,21 +12,26 @@ interface LocationState {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, role, isLoading, signIn } = useAuth();
+  const { user, role, passwordTemporary, isLoading, signIn } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const flashReason = (location.state as LocationState | null)?.reason;
 
-  // If already authed with a role, bounce to dashboard
+  // If already authed, route to the right place. A temp password short-
+  // circuits to /admin/reset-password regardless of role so the user
+  // can't use the dashboard until they've picked a real password.
   useEffect(() => {
-    if (!isLoading && user && role) {
+    if (isLoading || !user) return;
+    if (passwordTemporary) {
+      navigate("/admin/reset-password", { replace: true });
+    } else if (role) {
       navigate("/admin", { replace: true });
     }
-  }, [user, role, isLoading, navigate]);
+  }, [user, role, passwordTemporary, isLoading, navigate]);
 
   // Show a friendly message if the guard kicked us back here without a role
   useEffect(() => {
@@ -48,13 +53,13 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await signIn(email.trim(), password);
-      // The useEffect above will redirect once role loads
+      await signIn(identifier, password);
+      // The useEffect above will redirect once role + temp-pwd flag load
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Sign in failed. Check your email and password."
+          : "Sign in failed. Check your credentials."
       );
     } finally {
       setSubmitting(false);
@@ -81,18 +86,18 @@ export default function LoginPage() {
           className="space-y-4 rounded-3xl border border-border bg-card p-5"
         >
           <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-semibold">
-              Email
+            <label htmlFor="identifier" className="text-sm font-semibold">
+              Email or username
             </label>
             <Input
-              id="email"
-              type="email"
-              autoComplete="email"
+              id="identifier"
+              type="text"
+              autoComplete="username"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className="h-11 rounded-xl"
-              placeholder="staff@example.com"
+              placeholder="you@example.com or maria"
             />
           </div>
           <div className="space-y-1.5">
@@ -120,7 +125,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={submitting || !email || !password}
+            disabled={submitting || !identifier || !password}
             className="w-full rounded-full bg-foreground py-3 text-sm font-semibold text-background transition-transform hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
           >
             {submitting ? "Signing in…" : "Sign in"}

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import {
   AlertCircle,
+  AtSign,
+  ChefHat,
+  Coffee,
+  KeyRound,
   Mail,
   Pencil,
   Plus,
   ShieldCheck,
-  ChefHat,
-  Coffee,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
@@ -18,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/utils";
@@ -29,6 +29,8 @@ import {
 } from "../useAdminStaff";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import { StaffEditor } from "./StaffEditor";
+import { StaffCreateDialog } from "./StaffCreateDialog";
+import { StaffPasswordReveal } from "./StaffPasswordReveal";
 
 const ROLE_LABEL: Record<StaffRole, string> = {
   admin: "Admin",
@@ -48,13 +50,21 @@ const ROLE_PILL: Record<StaffRole, string> = {
   waiter: "bg-warning text-foreground",
 };
 
+interface RevealState {
+  context:
+    | { kind: "created"; email?: string; username?: string | null }
+    | { kind: "reset"; identifier: string };
+  password: string;
+}
+
 export default function StaffPage() {
   const { user } = useAuth();
   const {
     members,
     isLoading,
     error,
-    invite,
+    createStaff,
+    resetPassword,
     setRole,
     setDisplayName,
     setAvatar,
@@ -62,12 +72,14 @@ export default function StaffPage() {
     remove,
   } = useAdminStaff();
   const [now, setNow] = useState(() => Date.now());
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null);
+  const [resetTarget, setResetTarget] = useState<StaffMember | null>(null);
+  const [reveal, setReveal] = useState<RevealState | null>(null);
 
-  // Resolve the edit target from the live members list so the modal
-  // reflects realtime updates while it's open.
+  // Resolve targets from the live members list so the modals reflect
+  // realtime updates (e.g. another admin renames the row mid-edit).
   const editTarget = editTargetId
     ? members.find((m) => m.userId === editTargetId) ?? null
     : null;
@@ -89,17 +101,17 @@ export default function StaffPage() {
             Staff manager
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {members.length} member{members.length === 1 ? "" : "s"} · invite
-            new staff or change roles
+            {members.length} member{members.length === 1 ? "" : "s"} · create
+            accounts and manage roles
           </p>
         </div>
         <button
           type="button"
-          onClick={() => setInviteOpen(true)}
+          onClick={() => setCreateOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
         >
           <Plus className="h-4 w-4" strokeWidth={2.4} />
-          Invite staff
+          New staff
         </button>
       </header>
 
@@ -113,7 +125,7 @@ export default function StaffPage() {
       {isLoading ? (
         <ListSkeleton />
       ) : members.length === 0 ? (
-        <Empty onInvite={() => setInviteOpen(true)} />
+        <Empty onCreate={() => setCreateOpen(true)} />
       ) : (
         <StaffTable
           members={members}
@@ -121,14 +133,48 @@ export default function StaffPage() {
           now={now}
           onChangeRole={setRole}
           onEdit={(m) => setEditTargetId(m.userId)}
+          onResetPassword={(m) => setResetTarget(m)}
           onRemove={(m) => setRemoveTarget(m)}
         />
       )}
 
-      <InviteDialog
-        open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        onInvite={invite}
+      <StaffCreateDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSubmit={createStaff}
+        onCreated={(info) => {
+          setCreateOpen(false);
+          setReveal({
+            context: {
+              kind: "created",
+              email: info.email,
+              username: info.username,
+            },
+            password: info.password,
+          });
+        }}
+      />
+
+      <ResetPasswordDialog
+        target={resetTarget}
+        onClose={() => setResetTarget(null)}
+        onConfirm={async (m) => {
+          const result = await resetPassword(m.userId);
+          if (result.ok && result.password) {
+            setResetTarget(null);
+            setReveal({
+              context: {
+                kind: "reset",
+                identifier:
+                  m.username ??
+                  m.displayName ??
+                  m.email,
+              },
+              password: result.password,
+            });
+          }
+          return result;
+        }}
       />
 
       <RemoveDialog
@@ -148,6 +194,13 @@ export default function StaffPage() {
         onUploadAvatar={setAvatar}
         onRemoveAvatar={removeAvatar}
       />
+
+      <StaffPasswordReveal
+        open={reveal !== null}
+        onClose={() => setReveal(null)}
+        context={reveal?.context ?? null}
+        password={reveal?.password ?? null}
+      />
     </div>
   );
 }
@@ -158,6 +211,7 @@ function StaffTable({
   now,
   onChangeRole,
   onEdit,
+  onResetPassword,
   onRemove,
 }: {
   members: StaffMember[];
@@ -165,6 +219,7 @@ function StaffTable({
   now: number;
   onChangeRole: (id: string, role: StaffRole) => void;
   onEdit: (m: StaffMember) => void;
+  onResetPassword: (m: StaffMember) => void;
   onRemove: (m: StaffMember) => void;
 }) {
   return (
@@ -175,7 +230,7 @@ function StaffTable({
             <th className="px-4 py-2.5">Member</th>
             <th className="px-4 py-2.5 w-[140px]">Role</th>
             <th className="px-4 py-2.5 w-[140px]">Last seen</th>
-            <th className="px-4 py-2.5 w-[100px]" />
+            <th className="px-4 py-2.5 w-[140px]" />
           </tr>
         </thead>
         <tbody>
@@ -187,6 +242,7 @@ function StaffTable({
               now={now}
               onChangeRole={onChangeRole}
               onEdit={onEdit}
+              onResetPassword={onResetPassword}
               onRemove={onRemove}
             />
           ))}
@@ -202,6 +258,7 @@ function StaffRow({
   now,
   onChangeRole,
   onEdit,
+  onResetPassword,
   onRemove,
 }: {
   member: StaffMember;
@@ -209,13 +266,20 @@ function StaffRow({
   now: number;
   onChangeRole: (id: string, role: StaffRole) => void;
   onEdit: (m: StaffMember) => void;
+  onResetPassword: (m: StaffMember) => void;
   onRemove: (m: StaffMember) => void;
 }) {
   const Icon = ROLE_ICON[member.role];
   const initial =
     (member.displayName?.[0] ?? member.email[0] ?? "?").toUpperCase();
   const visibleName =
-    member.displayName?.trim() || member.email.split("@")[0];
+    member.displayName?.trim() ||
+    member.username ||
+    member.email.split("@")[0];
+
+  // Hide synthetic "@servio.local" emails (assigned when admin only
+  // created a username) — surfacing them is just visual noise.
+  const isSyntheticEmail = member.email.endsWith("@servio.local");
 
   return (
     <tr className="group border-b border-border/60 transition-colors last:border-b-0 hover:bg-muted/30">
@@ -252,11 +316,30 @@ function StaffRow({
                   you
                 </span>
               )}
+              {member.passwordTemporary && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-warning/20 px-1.5 py-0 text-[10px] font-bold uppercase tracking-wider text-foreground"
+                  title="Must change password on next sign-in"
+                >
+                  <KeyRound className="h-2.5 w-2.5" strokeWidth={2.6} />
+                  temp
+                </span>
+              )}
             </p>
-            <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-              <Mail className="h-3 w-3 shrink-0" strokeWidth={2.2} />
-              {member.email}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+              {member.username && (
+                <span className="inline-flex items-center gap-1">
+                  <AtSign className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+                  {member.username}
+                </span>
+              )}
+              {!isSyntheticEmail && (
+                <span className="inline-flex items-center gap-1 truncate">
+                  <Mail className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+                  {member.email}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </td>
@@ -273,8 +356,10 @@ function StaffRow({
           </span>
           <select
             value={member.role}
-            onChange={(e) => onChangeRole(member.userId, e.target.value as StaffRole)}
-            aria-label={`Change role for ${member.email}`}
+            onChange={(e) =>
+              onChangeRole(member.userId, e.target.value as StaffRole)
+            }
+            aria-label={`Change role for ${visibleName}`}
             className="absolute inset-0 cursor-pointer opacity-0"
           >
             <option value="admin">Admin</option>
@@ -292,8 +377,17 @@ function StaffRow({
         <div className="flex items-center justify-end gap-1.5">
           <button
             type="button"
+            onClick={() => onResetPassword(member)}
+            aria-label={`Reset password for ${visibleName}`}
+            title="Reset password"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
+          >
+            <KeyRound className="h-3.5 w-3.5" strokeWidth={2.2} />
+          </button>
+          <button
+            type="button"
             onClick={() => onEdit(member)}
-            aria-label={`Edit ${member.email}`}
+            aria-label={`Edit ${visibleName}`}
             title="Edit staff"
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
           >
@@ -302,7 +396,7 @@ function StaffRow({
           <button
             type="button"
             onClick={() => onRemove(member)}
-            aria-label={`Remove ${member.email}`}
+            aria-label={`Remove ${visibleName}`}
             title="Remove staff"
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
           >
@@ -314,161 +408,96 @@ function StaffRow({
   );
 }
 
-function InviteDialog({
-  open,
+function ResetPasswordDialog({
+  target,
   onClose,
-  onInvite,
+  onConfirm,
 }: {
-  open: boolean;
+  target: StaffMember | null;
   onClose: () => void;
-  onInvite: (params: {
-    email: string;
-    role: StaffRole;
-    displayName?: string;
-  }) => Promise<{ ok: boolean; message?: string }>;
+  onConfirm: (
+    m: StaffMember
+  ) => Promise<{ ok: boolean; message?: string; password?: string }>;
 }) {
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<StaffRole>("kitchen");
-  const [displayName, setDisplayName] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      setEmail("");
-      setRole("kitchen");
-      setDisplayName("");
+    if (!target) {
       setError(null);
-      setSubmitting(false);
+      setPending(false);
     }
-  }, [open]);
+  }, [target]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
+  const handle = async () => {
+    if (!target || pending) return;
+    setPending(true);
     setError(null);
-    const result = await onInvite({
-      email,
-      role,
-      displayName: displayName.trim() || undefined,
-    });
-    setSubmitting(false);
-    if (result.ok) {
-      toast.success(`Invite sent to ${email}`);
-      onClose();
-    } else {
-      setError(result.message ?? "Invite failed");
+    const result = await onConfirm(target);
+    setPending(false);
+    if (!result.ok) {
+      setError(result.message ?? "Reset failed");
     }
+    // Success path closes the dialog from the parent; no work here.
   };
+
+  const identifier =
+    target?.username ?? target?.displayName ?? target?.email ?? "—";
 
   return (
     <Dialog
-      open={open}
+      open={target !== null}
       onOpenChange={(o) => {
-        if (!o && !submitting) onClose();
+        if (!o && !pending) onClose();
       }}
     >
       <DialogContent
-        showCloseButton={!submitting}
+        showCloseButton={!pending}
         className="w-[calc(100%-2rem)] gap-0 rounded-3xl p-0 sm:w-full sm:max-w-md"
       >
         <DialogHeader className="border-b border-border px-5 py-4 text-left">
           <DialogDescription className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Invite
+            Reset password
           </DialogDescription>
           <DialogTitle className="text-xl font-bold leading-tight">
-            New staff member
+            Issue a new password
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 p-5">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Email
-            </label>
-            <Input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
-              autoFocus
-              className="h-11 rounded-xl"
-            />
+        {target && (
+          <div className="space-y-3 px-5 py-4 text-sm">
+            <p className="text-foreground">
+              We&apos;ll generate a new temporary password for{" "}
+              <span className="font-semibold">{identifier}</span> and
+              show it to you once. Their current password will stop
+              working immediately.
+            </p>
+            {error && (
+              <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <p>{error}</p>
+              </div>
+            )}
           </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Display name{" "}
-              <span className="ml-1 normal-case tracking-normal text-muted-foreground/80">
-                optional
-              </span>
-            </label>
-            <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Maria"
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Role
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["admin", "kitchen", "waiter"] as StaffRole[]).map((r) => {
-                const Icon = ROLE_ICON[r];
-                const isActive = role === r;
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setRole(r)}
-                    aria-pressed={isActive}
-                    className={cn(
-                      "flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-xs font-semibold transition-all active:scale-95",
-                      isActive
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border bg-card text-foreground/70 hover:border-foreground/40 hover:text-foreground"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" strokeWidth={2.4} />
-                    {ROLE_LABEL[r]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {error && (
-            <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <p>{error}</p>
-            </div>
-          )}
-        </form>
+        )}
 
         <footer className="border-t border-border bg-muted/40 px-5 py-3">
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="rounded-full px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              onClick={handleSubmit}
-              disabled={submitting || !email}
-              className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {submitting ? "Sending…" : "Send invite"}
-            </button>
-          </div>
+          {target ? (
+            <ConfirmFooterRow
+              question={
+                <>
+                  Reset password for{" "}
+                  <span className="font-bold">{identifier}</span>?
+                </>
+              }
+              cancelLabel="Cancel"
+              confirmLabel="Reset"
+              pendingLabel="Resetting…"
+              pending={pending}
+              onCancel={onClose}
+              onConfirm={handle}
+            />
+          ) : null}
         </footer>
       </DialogContent>
     </Dialog>
@@ -496,6 +525,9 @@ function RemoveDialog({
     }
   };
 
+  const identifier =
+    target?.username ?? target?.displayName ?? target?.email ?? "—";
+
   return (
     <Dialog
       open={target !== null}
@@ -519,9 +551,9 @@ function RemoveDialog({
         {target && (
           <div className="px-5 py-4 text-sm">
             <p className="text-foreground">
-              <span className="font-semibold">{target.email}</span> will lose
+              <span className="font-semibold">{identifier}</span> will lose
               access to the admin app immediately. Their auth account stays so
-              you can re-invite them later.
+              you can re-create access later if needed.
             </p>
           </div>
         )}
@@ -531,8 +563,7 @@ function RemoveDialog({
             <ConfirmFooterRow
               question={
                 <>
-                  Remove{" "}
-                  <span className="font-bold">{target.email}</span>?
+                  Remove <span className="font-bold">{identifier}</span>?
                 </>
               }
               cancelLabel="Keep"
@@ -571,16 +602,16 @@ function ListSkeleton() {
   );
 }
 
-function Empty({ onInvite }: { onInvite: () => void }) {
+function Empty({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-12 text-center">
       <p className="text-sm text-muted-foreground">No staff yet.</p>
       <button
         type="button"
-        onClick={onInvite}
+        onClick={onCreate}
         className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
       >
-        Invite the first
+        Create the first
       </button>
     </div>
   );

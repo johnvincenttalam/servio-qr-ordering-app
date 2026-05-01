@@ -16,8 +16,21 @@ interface AuthContextValue {
   role: StaffRole | null;
   displayName: string | null;
   avatarUrl: string | null;
+  /**
+   * True when the user's password was just set by an admin and they
+   * must change it before doing anything else. Login routes them
+   * straight to /admin/reset-password while this is true. Cleared on
+   * the server via clear_password_temporary() once the new password
+   * is saved.
+   */
+  passwordTemporary: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  /**
+   * Sign in with either an email or a username + password. Username
+   * is resolved to its underlying email via the
+   * lookup_email_by_username RPC before calling Supabase auth.
+   */
+  signIn: (identifier: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -32,12 +45,14 @@ const ROLE_QUERY_TIMEOUT_MS = 8000;
 const ROLE_CACHE_KEY = "servio.auth.role";
 const NAME_CACHE_KEY = "servio.auth.displayName";
 const AVATAR_CACHE_KEY = "servio.auth.avatarUrl";
+const TEMP_PWD_CACHE_KEY = "servio.auth.passwordTemporary";
 const USERID_CACHE_KEY = "servio.auth.userId";
 
 interface CachedStaff {
   role: StaffRole;
   displayName: string | null;
   avatarUrl: string | null;
+  passwordTemporary: boolean;
 }
 
 function getCachedStaff(userId: string): CachedStaff | null {
@@ -49,6 +64,8 @@ function getCachedStaff(userId: string): CachedStaff | null {
       role,
       displayName: sessionStorage.getItem(NAME_CACHE_KEY) || null,
       avatarUrl: sessionStorage.getItem(AVATAR_CACHE_KEY) || null,
+      passwordTemporary:
+        sessionStorage.getItem(TEMP_PWD_CACHE_KEY) === "1",
     };
   } catch {
     return null;
@@ -70,11 +87,16 @@ function setCachedStaff(userId: string | null, staff: CachedStaff | null) {
       } else {
         sessionStorage.removeItem(AVATAR_CACHE_KEY);
       }
+      sessionStorage.setItem(
+        TEMP_PWD_CACHE_KEY,
+        staff.passwordTemporary ? "1" : "0"
+      );
     } else {
       sessionStorage.removeItem(USERID_CACHE_KEY);
       sessionStorage.removeItem(ROLE_CACHE_KEY);
       sessionStorage.removeItem(NAME_CACHE_KEY);
       sessionStorage.removeItem(AVATAR_CACHE_KEY);
+      sessionStorage.removeItem(TEMP_PWD_CACHE_KEY);
     }
   } catch {
     // sessionStorage may throw in private browsing — fail silent
@@ -98,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<StaffRole | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [passwordTemporary, setPasswordTemporary] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -113,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data, error } = await withTimeout(
           supabase
             .from("staff")
-            .select("role, display_name, avatar_url")
+            .select("role, display_name, avatar_url, password_temporary")
             .eq("user_id", userId)
             .maybeSingle(),
           ROLE_QUERY_TIMEOUT_MS,
@@ -130,6 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: data.role as StaffRole,
             displayName: (data.display_name as string | null) ?? null,
             avatarUrl: (data.avatar_url as string | null) ?? null,
+            passwordTemporary:
+              (data.password_temporary as boolean | null) ?? false,
           },
         };
       } catch (err) {
@@ -149,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(result.staff?.role ?? null);
       setDisplayName(result.staff?.displayName ?? null);
       setAvatarUrl(result.staff?.avatarUrl ?? null);
+      setPasswordTemporary(result.staff?.passwordTemporary ?? false);
     }
 
     async function handleAuthEvent(session: { user: User | null } | null) {
@@ -160,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setDisplayName(null);
         setAvatarUrl(null);
+        setPasswordTemporary(false);
         if (!cancelled) setIsLoading(false);
         return;
       }
@@ -170,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(cached.role);
         setDisplayName(cached.displayName);
         setAvatarUrl(cached.avatarUrl);
+        setPasswordTemporary(cached.passwordTemporary);
         if (!cancelled) setIsLoading(false);
         backgroundRefreshStaff(nextUser.id);
         return;
@@ -189,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(staff?.role ?? null);
       setDisplayName(staff?.displayName ?? null);
       setAvatarUrl(staff?.avatarUrl ?? null);
+      setPasswordTemporary(staff?.passwordTemporary ?? false);
       setIsLoading(false);
     }
 
@@ -210,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setDisplayName(null);
         setAvatarUrl(null);
+        setPasswordTemporary(false);
         setIsLoading(false);
       }
     }, INIT_TIMEOUT_MS);
@@ -221,13 +251,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-  }, []);
+  const signIn = useCallback(
+    async (identifier: string, password: string) => {
+      const trimmed = identifier.trim();
+      let email = trimmed;
+
+      // No "@" → treat as username, resolve to email via the public RPC
+      if (!trimmed.includes("@")) {
+        const { data, error: rpcError } = await supabase.rpc(
+          "lookup_email_by_username",
+          { p_username: trimmed.toLowerCase() }
+        );
+        if (rpcError) {
+          throw new Error("Couldn't verify the username. Try again.");
+        }
+        if (!data) {
+          // Mirror Supabase's invalid-credentials wording so an attacker
+          // can't tell whether it was a bad username or a bad password.
+          throw new Error("Invalid login credentials");
+        }
+        email = data as string;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+    },
+    []
+  );
 
   const signOut = useCallback(async () => {
     setCachedStaff(null, null);
@@ -236,7 +289,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, role, displayName, avatarUrl, isLoading, signIn, signOut }}
+      value={{
+        user,
+        role,
+        displayName,
+        avatarUrl,
+        passwordTemporary,
+        isLoading,
+        signIn,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>
