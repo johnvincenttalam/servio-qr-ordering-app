@@ -104,11 +104,13 @@ export function useAdminStaff(): UseAdminStaffReturn {
   const invite = useCallback<UseAdminStaffReturn["invite"]>(
     async (params) => {
       // Tell the edge function where the invitee should land after
-      // accepting the email link. Origin-only so the edge function works
-      // for both dev (localhost:5173) and prod (vercel.app).
+      // accepting the email link. /admin/reset-password forces them to
+      // pick a password before continuing — without it they'd be locked
+      // out the moment their invite session expired or they signed out
+      // (the auth.users row has a NULL password until they set one).
       const redirectTo =
         typeof window !== "undefined"
-          ? `${window.location.origin}/admin`
+          ? `${window.location.origin}/admin/reset-password`
           : undefined;
 
       const { data, error: invokeError } = await supabase.functions.invoke<

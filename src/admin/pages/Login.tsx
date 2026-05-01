@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Utensils, AlertCircle } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { Input } from "@/components/ui/input";
 
 interface LocationState {
   from?: string;
-  reason?: "no-staff-record";
+  reason?: "no-staff-record" | "expired-reset";
 }
 
 export default function LoginPage() {
@@ -33,6 +33,10 @@ export default function LoginPage() {
     if (flashReason === "no-staff-record" && user && !role) {
       setError(
         "You're signed in but not registered as staff. Ask an admin to add you."
+      );
+    } else if (flashReason === "expired-reset") {
+      setError(
+        "That reset link has expired. Request a new one below."
       );
     }
   }, [flashReason, user, role]);
@@ -121,10 +125,17 @@ export default function LoginPage() {
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>
+
+          <Link
+            to="/admin/forgot-password"
+            className="block text-center text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            Forgot password?
+          </Link>
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Staff accounts are created by an admin in the Supabase dashboard.
+          Staff accounts are created by an admin from the Staff manager.
         </p>
       </div>
     </div>

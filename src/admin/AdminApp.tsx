@@ -2,6 +2,8 @@ import { Routes, Route } from "react-router-dom";
 import { AuthGuard } from "@/auth/AuthGuard";
 import { AdminLayout } from "./AdminLayout";
 import LoginPage from "./pages/Login";
+import ForgotPasswordPage from "./pages/ForgotPassword";
+import ResetPasswordPage from "./pages/ResetPassword";
 import DashboardPage from "./pages/Dashboard";
 import MenuManagerPage from "./pages/MenuManager";
 import OrdersPage from "./pages/Orders";
@@ -13,6 +15,8 @@ export default function AdminApp() {
   return (
     <Routes>
       <Route path="login" element={<LoginPage />} />
+      <Route path="forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="reset-password" element={<ResetPasswordPage />} />
       <Route
         element={
           <AuthGuard>
