@@ -10,6 +10,7 @@ import {
   Plus,
   ShieldCheck,
   Trash2,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -27,6 +28,7 @@ import {
   type StaffMember,
   type StaffRole,
 } from "../useAdminStaff";
+import { AdminEmptyState } from "../components/AdminEmptyState";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import { StaffEditor } from "./StaffEditor";
 import { StaffCreateDialog } from "./StaffCreateDialog";
@@ -604,15 +606,12 @@ function ListSkeleton() {
 
 function Empty({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-12 text-center">
-      <p className="text-sm text-muted-foreground">No staff yet.</p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
-      >
-        Create the first
-      </button>
-    </div>
+    <AdminEmptyState
+      icon={Users}
+      title="No staff yet"
+      description="Invite your team — admins manage everything, kitchen staff fulfil orders."
+      actionLabel="Create the first"
+      onAction={onCreate}
+    />
   );
 }

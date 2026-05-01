@@ -8,6 +8,7 @@ import {
   ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AdminEmptyState } from "../components/AdminEmptyState";
 import {
   useAdminBanners,
   type AdminBanner,
@@ -281,24 +282,12 @@ function ListSkeleton() {
 
 function Empty({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-16 text-center">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-        <ImageIcon className="h-6 w-6 text-foreground/70" strokeWidth={1.8} />
-      </span>
-      <div className="space-y-1">
-        <h2 className="text-base font-bold">No banners yet</h2>
-        <p className="text-sm text-muted-foreground">
-          Promo banners show in a carousel at the top of the customer menu.
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onAdd}
-        className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
-      >
-        <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-        Add banner
-      </button>
-    </div>
+    <AdminEmptyState
+      icon={ImageIcon}
+      title="No banners yet"
+      description="Promo banners show in a carousel at the top of the customer menu."
+      actionLabel="Add banner"
+      onAction={onAdd}
+    />
   );
 }

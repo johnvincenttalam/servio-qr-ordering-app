@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles,
   AlertCircle,
+  Check,
+  CheckSquare,
   LayoutGrid,
   List,
   Pencil,
@@ -11,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdminMenu } from "../useAdminMenu";
+import { AdminEmptyState } from "../components/AdminEmptyState";
 import { InlinePriceEdit } from "../components/InlinePriceEdit";
 import { MenuItemEditor } from "./MenuItemEditor";
 import type { Category, MenuItem, MenuCategory } from "@/types";
@@ -32,11 +35,25 @@ export default function MenuManagerPage() {
     isLoading,
     error,
     setInStock,
+    setInStockBulk,
     setPrice,
     saveItem,
     createItem,
     archiveItem,
   } = useAdminMenu();
+
+  // Bulk-edit selection. A Set keeps add/remove O(1) and gives clean
+  // size/has reads for rendering selection state on each row.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
 
   // Quick lookup so item rows can render their category's label without
   // repeating the find. Falls back to the raw id if a category was
@@ -106,8 +123,57 @@ export default function MenuManagerPage() {
     setSearchQuery("");
   };
 
+  // Esc to drop the selection — convenient when the bulk bar appears
+  // and the admin actually meant to do something else.
+  useEffect(() => {
+    if (selectedIds.size === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") clearSelection();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedIds.size]);
+
+  const handleBulkSetInStock = async (inStock: boolean) => {
+    const ids = Array.from(selectedIds);
+    clearSelection();
+    await setInStockBulk(ids, inStock);
+  };
+
+  // Visible-selection toggle: select all of `filtered` if any are
+  // unselected, otherwise clear them. Only applies to the items the
+  // admin can currently see, which avoids the surprise of "Select all"
+  // also picking up rows hidden by the filter.
+  const visibleIds = useMemo(() => filtered.map((it) => it.id), [filtered]);
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      // Drop only the visible ones — keep any hidden selections intact.
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of visibleIds) next.delete(id);
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of visibleIds) next.add(id);
+        return next;
+      });
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div
+      className={cn(
+        "space-y-6",
+        // Reserve room for the floating bulk-action bar so the last
+        // row stays visible when the page is scrolled to the bottom.
+        selectedIds.size > 0 && "pb-20"
+      )}
+    >
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -182,35 +248,56 @@ export default function MenuManagerPage() {
         viewMode === "grid" ? <GridSkeleton /> : <ListSkeleton />
       ) : filtered.length === 0 ? (
         <EmptyMessage isFiltering={isFiltering} onClear={clearFilters} />
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {filtered.map((item) => (
-            <MenuItemCard
-              key={item.id}
-              item={item}
-              categoryLabel={labelFor(item.category)}
-              showCategory={filter === "all"}
-              onToggleStock={(value) => setInStock(item.id, value)}
-              onSetPrice={(price) => setPrice(item.id, price)}
-              onEdit={() => setDrawer({ mode: "edit", item })}
-            />
-          ))}
-        </div>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((item) => (
-            <MenuItemRow
-              key={item.id}
-              item={item}
-              categoryLabel={labelFor(item.category)}
-              showCategory={filter === "all"}
-              onToggleStock={(value) => setInStock(item.id, value)}
-              onSetPrice={(price) => setPrice(item.id, price)}
-              onEdit={() => setDrawer({ mode: "edit", item })}
-            />
-          ))}
-        </ul>
+        <>
+          <SelectAllRow
+            visibleCount={filtered.length}
+            allSelected={allVisibleSelected}
+            someSelected={someVisibleSelected}
+            onToggle={toggleSelectAllVisible}
+          />
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {filtered.map((item) => (
+                <MenuItemCard
+                  key={item.id}
+                  item={item}
+                  categoryLabel={labelFor(item.category)}
+                  showCategory={filter === "all"}
+                  isSelected={selectedIds.has(item.id)}
+                  onToggleSelect={() => toggleSelected(item.id)}
+                  onToggleStock={(value) => setInStock(item.id, value)}
+                  onSetPrice={(price) => setPrice(item.id, price)}
+                  onEdit={() => setDrawer({ mode: "edit", item })}
+                />
+              ))}
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {filtered.map((item) => (
+                <MenuItemRow
+                  key={item.id}
+                  item={item}
+                  categoryLabel={labelFor(item.category)}
+                  showCategory={filter === "all"}
+                  isSelected={selectedIds.has(item.id)}
+                  onToggleSelect={() => toggleSelected(item.id)}
+                  onToggleStock={(value) => setInStock(item.id, value)}
+                  onSetPrice={(price) => setPrice(item.id, price)}
+                  onEdit={() => setDrawer({ mode: "edit", item })}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
+
+      <BulkActionBar
+        count={selectedIds.size}
+        onMarkSoldOut={() => handleBulkSetInStock(false)}
+        onMarkInStock={() => handleBulkSetInStock(true)}
+        onClear={clearSelection}
+      />
 
       <MenuItemEditor
         open={drawer !== null}
@@ -375,6 +462,8 @@ function MenuItemRow({
   item,
   categoryLabel,
   showCategory,
+  isSelected,
+  onToggleSelect,
   onToggleStock,
   onSetPrice,
   onEdit,
@@ -382,6 +471,8 @@ function MenuItemRow({
   item: MenuItem;
   categoryLabel: string;
   showCategory: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
   onToggleStock: (value: boolean) => void;
   onSetPrice: (price: number) => Promise<void>;
   onEdit: () => void;
@@ -393,9 +484,11 @@ function MenuItemRow({
     <li
       className={cn(
         "flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition-colors hover:border-foreground/20",
-        !inStock && "border-l-4 border-l-destructive"
+        !inStock && "border-l-4 border-l-destructive",
+        isSelected && "border-foreground/60 bg-muted/40 ring-1 ring-foreground/20"
       )}
     >
+      <SelectCheckbox selected={isSelected} onChange={onToggleSelect} />
       <button
         type="button"
         onClick={onEdit}
@@ -471,6 +564,132 @@ function MenuItemRow({
         <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
       </button>
     </li>
+  );
+}
+
+function SelectCheckbox({
+  selected,
+  onChange,
+  className,
+}: {
+  selected: boolean;
+  onChange: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      onClick={onChange}
+      title={selected ? "Unselect" : "Select"}
+      className={cn(
+        "flex h-5 w-5 shrink-0 items-center justify-center rounded transition-all active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2",
+        selected
+          ? "bg-foreground text-background"
+          : "border border-border bg-card hover:border-foreground/50",
+        className
+      )}
+    >
+      {selected && <Check className="h-3 w-3" strokeWidth={3} />}
+    </button>
+  );
+}
+
+function SelectAllRow({
+  visibleCount,
+  allSelected,
+  someSelected,
+  onToggle,
+}: {
+  visibleCount: number;
+  allSelected: boolean;
+  someSelected: boolean;
+  onToggle: () => void;
+}) {
+  // Indeterminate state — some but not all visible items selected.
+  const indeterminate = someSelected && !allSelected;
+  return (
+    <div className="flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground">
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={allSelected ? true : indeterminate ? "mixed" : false}
+        onClick={onToggle}
+        title={allSelected ? "Unselect all visible" : "Select all visible"}
+        className={cn(
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded transition-all active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2",
+          allSelected || indeterminate
+            ? "bg-foreground text-background"
+            : "border border-border bg-card hover:border-foreground/50"
+        )}
+      >
+        {allSelected ? (
+          <Check className="h-3 w-3" strokeWidth={3} />
+        ) : indeterminate ? (
+          <span className="block h-0.5 w-2.5 rounded bg-background" aria-hidden />
+        ) : null}
+      </button>
+      <span className="font-semibold tracking-wider">
+        {allSelected
+          ? `All ${visibleCount} selected`
+          : someSelected
+          ? "Selected"
+          : "Select all"}
+      </span>
+    </div>
+  );
+}
+
+function BulkActionBar({
+  count,
+  onMarkSoldOut,
+  onMarkInStock,
+  onClear,
+}: {
+  count: number;
+  onMarkSoldOut: () => void;
+  onMarkInStock: () => void;
+  onClear: () => void;
+}) {
+  if (count === 0) return null;
+  return (
+    <div
+      role="region"
+      aria-label="Bulk actions"
+      className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 animate-fade-up"
+    >
+      <div className="flex items-center gap-1 rounded-full border border-foreground/10 bg-foreground p-1.5 text-background shadow-2xl">
+        <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold">
+          <CheckSquare className="h-3.5 w-3.5" strokeWidth={2.4} />
+          {count} selected
+        </span>
+        <span className="h-5 w-px bg-background/20" aria-hidden />
+        <button
+          type="button"
+          onClick={onMarkSoldOut}
+          className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-background/10 active:scale-95"
+        >
+          Mark sold out
+        </button>
+        <button
+          type="button"
+          onClick={onMarkInStock}
+          className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-background/10 active:scale-95"
+        >
+          Mark in stock
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear selection"
+          title="Clear selection (Esc)"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-background/70 transition-colors hover:bg-background/10 hover:text-background active:scale-95"
+        >
+          <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -556,6 +775,8 @@ function MenuItemCard({
   item,
   categoryLabel,
   showCategory,
+  isSelected,
+  onToggleSelect,
   onToggleStock,
   onSetPrice,
   onEdit,
@@ -563,6 +784,8 @@ function MenuItemCard({
   item: MenuItem;
   categoryLabel: string;
   showCategory: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
   onToggleStock: (value: boolean) => void;
   onSetPrice: (price: number) => Promise<void>;
   onEdit: () => void;
@@ -574,27 +797,39 @@ function MenuItemCard({
     <div
       className={cn(
         "group/card relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-foreground/20",
-        !inStock && "border-l-4 border-l-destructive"
+        !inStock && "border-l-4 border-l-destructive",
+        isSelected && "border-foreground/60 ring-1 ring-foreground/20"
       )}
     >
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={`Edit ${item.name}`}
-        className="relative aspect-[4/3] overflow-hidden bg-muted text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30"
-      >
-        <img
-          src={item.image}
-          alt={item.name}
-          loading="lazy"
-          className={cn(
-            "h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105",
-            !inStock && "grayscale opacity-60"
-          )}
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Edit ${item.name}`}
+          className="absolute inset-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30"
+        >
+          <img
+            src={item.image}
+            alt={item.name}
+            loading="lazy"
+            className={cn(
+              "h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105",
+              !inStock && "grayscale opacity-60"
+            )}
+          />
+        </button>
+        {/* The checkbox sits as an overlay sibling of the image button so
+            we don't end up with nested <button> elements. z-10 keeps it
+            above the image; stopPropagation isn't needed because the
+            buttons aren't ancestors of each other. */}
+        <SelectCheckbox
+          selected={isSelected}
+          onChange={onToggleSelect}
+          className="absolute left-2 top-2 z-10"
         />
         {item.topPick && (
           <span
-            className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold text-foreground"
+            className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold text-foreground"
             title="Top pick"
           >
             <Sparkles className="h-2.5 w-2.5" strokeWidth={2.5} />
@@ -602,11 +837,11 @@ function MenuItemCard({
           </span>
         )}
         {!inStock && (
-          <span className="absolute right-2 top-2 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+          <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
             Sold out
           </span>
         )}
-      </button>
+      </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className={cn("min-w-0", !inStock && "opacity-70")}>
@@ -713,20 +948,24 @@ function EmptyMessage({
   isFiltering: boolean;
   onClear: () => void;
 }) {
+  if (isFiltering) {
+    return (
+      <AdminEmptyState
+        icon={Search}
+        title="No matches"
+        description="Nothing matches your current filters. Clear them to see everything."
+        secondaryActionLabel="Clear filters"
+        onSecondaryAction={onClear}
+        tone="neutral"
+        compact
+      />
+    );
+  }
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-12 text-center">
-      <p className="text-sm text-muted-foreground">
-        {isFiltering ? "No items match your filters." : "No menu items yet."}
-      </p>
-      {isFiltering && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-muted active:scale-95"
-        >
-          Clear filters
-        </button>
-      )}
-    </div>
+    <AdminEmptyState
+      icon={Plus}
+      title="No menu items yet"
+      description="Add your first dish so guests can start ordering."
+    />
   );
 }

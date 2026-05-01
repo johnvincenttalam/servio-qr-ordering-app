@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, AlertCircle, Check, Mail, Utensils } from "lucide-react";
+import { ArrowLeft, AlertCircle, Check, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
+import { AuthShell } from "../components/AuthShell";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -35,21 +36,11 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground text-background">
-            <Utensils className="h-6 w-6" strokeWidth={2.4} />
-          </span>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight">
-            Reset your password
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Enter your staff email and we&apos;ll send you a reset link.
-          </p>
-        </div>
-
-        {sent ? (
+    <AuthShell
+      title="Reset your password"
+      subtitle="Enter your staff email and we'll send you a reset link."
+    >
+      {sent ? (
           <div className="rounded-3xl border border-success/40 bg-success/10 p-5 text-center">
             <span className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-success text-white">
               <Check className="h-5 w-5" strokeWidth={2.6} />
@@ -103,17 +94,16 @@ export default function ForgotPasswordPage() {
             >
               {submitting ? "Sending…" : "Send reset link"}
             </button>
-          </form>
-        )}
+        </form>
+      )}
 
-        <Link
-          to="/admin/login"
-          className="mt-6 inline-flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3 w-3" strokeWidth={2.4} />
-          Back to sign in
-        </Link>
-      </div>
-    </div>
+      <Link
+        to="/admin/login"
+        className="mt-6 inline-flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-3 w-3" strokeWidth={2.4} />
+        Back to sign in
+      </Link>
+    </AuthShell>
   );
 }

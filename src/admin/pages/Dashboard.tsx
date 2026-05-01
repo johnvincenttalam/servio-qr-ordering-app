@@ -79,6 +79,7 @@ function Stats({
             : "In the kitchen right now"
         }
         emphasis={stats.activeCount > 0}
+        tone="info"
       />
       <StatCard
         icon={Receipt}
@@ -93,6 +94,7 @@ function Stats({
         value={isLoading ? "—" : formatPrice(stats.todayRevenue)}
         delta={isLoading ? undefined : revenueDelta}
         subtext="vs yesterday"
+        tone="success"
       />
       <StatCard
         icon={CreditCard}
@@ -120,6 +122,7 @@ function Stats({
             : `${stats.topItem.quantity} sold today`
         }
         compact
+        tone="warning"
       />
       <StatCard
         icon={Timer}
@@ -156,6 +159,23 @@ function computeDelta(current: number, previous: number): Delta {
   return { pct, direction: pct > 0 ? "up" : "down" };
 }
 
+/**
+ * Tone classes for the StatCard's icon badge. Tinted backgrounds with
+ * solid coloured glyphs read as "this metric belongs to that status
+ * family" without making the whole card loud. Neutral falls back to
+ * the original muted look so cards without semantic colour stay calm.
+ */
+type StatTone = "neutral" | "info" | "success" | "warning";
+
+const STAT_TONE: Record<StatTone, string> = {
+  neutral: "bg-muted text-foreground/80",
+  info: "bg-info/15 text-info",
+  success: "bg-success/15 text-success",
+  // The brand warning is bright yellow — a tinted bg with foreground
+  // text reads better than warning-on-warning.
+  warning: "bg-warning/25 text-foreground",
+};
+
 function StatCard({
   icon: Icon,
   label,
@@ -164,6 +184,7 @@ function StatCard({
   emphasis = false,
   compact = false,
   delta,
+  tone = "neutral",
 }: {
   icon: LucideIcon;
   label: string;
@@ -172,6 +193,7 @@ function StatCard({
   emphasis?: boolean;
   compact?: boolean;
   delta?: Delta;
+  tone?: StatTone;
 }) {
   return (
     <div
@@ -187,7 +209,7 @@ function StatCard({
         <span
           className={cn(
             "flex h-7 w-7 items-center justify-center rounded-xl",
-            emphasis ? "bg-foreground text-background" : "bg-muted text-foreground/80"
+            STAT_TONE[tone]
           )}
         >
           <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />

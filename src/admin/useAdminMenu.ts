@@ -69,6 +69,7 @@ interface UseAdminMenuReturn {
   error: string | null;
   refetch: () => Promise<void>;
   setInStock: (id: string, inStock: boolean) => Promise<void>;
+  setInStockBulk: (ids: string[], inStock: boolean) => Promise<void>;
   setPrice: (id: string, price: number) => Promise<void>;
   saveItem: (id: string, draft: MenuItemDraft) => Promise<void>;
   createItem: (draft: MenuItemDraft) => Promise<void>;
@@ -183,6 +184,88 @@ export function useAdminMenu(): UseAdminMenuReturn {
           duration: 4000,
         }
       );
+    },
+    [items, refetch]
+  );
+
+  const setInStockBulk = useCallback(
+    async (ids: string[], inStock: boolean) => {
+      if (ids.length === 0) return;
+
+      // Snapshot the prior states so the undo path can restore each
+      // item back to where it was, not blanket-reset to the inverse —
+      // some of the selected rows may have already been in the target
+      // state (no-ops) and we don't want to undo them.
+      const prevById = new Map(
+        items
+          .filter((it) => ids.includes(it.id))
+          .map((it) => [it.id, it.inStock !== false] as const)
+      );
+
+      const idSet = new Set(ids);
+      setItems((prev) =>
+        prev.map((item) =>
+          idSet.has(item.id) ? { ...item, inStock } : item
+        )
+      );
+
+      const { error: updateError } = await supabase
+        .from("menu_items")
+        .update({ in_stock: inStock })
+        .in("id", ids);
+
+      if (updateError) {
+        console.error("[admin/menu] bulk toggle failed:", updateError);
+        toast.error("Couldn't update items — try again");
+        await refetch();
+        return;
+      }
+
+      const noun = ids.length === 1 ? "item" : "items";
+      const verb = inStock ? "back in stock" : "marked sold out";
+      toast(`${ids.length} ${noun} ${verb}`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            // Restore each id to its individual prior state.
+            setItems((prev) =>
+              prev.map((item) =>
+                prevById.has(item.id)
+                  ? { ...item, inStock: prevById.get(item.id) ?? true }
+                  : item
+              )
+            );
+            // Bucket ids by their prior in-stock state so each direction
+            // is a single round trip rather than N writes.
+            const toIn: string[] = [];
+            const toOut: string[] = [];
+            for (const [id, wasInStock] of prevById) {
+              (wasInStock ? toIn : toOut).push(id);
+            }
+            const errors = await Promise.all([
+              toIn.length > 0
+                ? supabase
+                    .from("menu_items")
+                    .update({ in_stock: true })
+                    .in("id", toIn)
+                : Promise.resolve({ error: null }),
+              toOut.length > 0
+                ? supabase
+                    .from("menu_items")
+                    .update({ in_stock: false })
+                    .in("id", toOut)
+                : Promise.resolve({ error: null }),
+            ]);
+            const failed = errors.find((r) => r.error);
+            if (failed?.error) {
+              console.error("[admin/menu] bulk undo failed:", failed.error);
+              toast.error("Couldn't undo — try again");
+              await refetch();
+            }
+          },
+        },
+        duration: 4000,
+      });
     },
     [items, refetch]
   );
@@ -317,6 +400,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
     error,
     refetch,
     setInStock,
+    setInStockBulk,
     setPrice,
     saveItem,
     createItem,

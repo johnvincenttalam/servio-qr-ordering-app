@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Utensils, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { Input } from "@/components/ui/input";
+import { AuthShell } from "../components/AuthShell";
 
 interface LocationState {
   from?: string;
@@ -67,24 +68,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground text-background">
-            <Utensils className="h-6 w-6" strokeWidth={2.4} />
-          </span>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight">
-            SERVIO Admin
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Sign in to manage the kitchen and menu.
-          </p>
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 rounded-3xl border border-border bg-card p-5"
-        >
+    <AuthShell
+      title="SERVIO Admin"
+      subtitle="Sign in to manage the kitchen and menu."
+    >
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-3xl border border-border bg-card p-5"
+      >
           <div className="space-y-1.5">
             <label htmlFor="identifier" className="text-sm font-semibold">
               Email or username
@@ -137,12 +128,11 @@ export default function LoginPage() {
           >
             Forgot password?
           </Link>
-        </form>
+      </form>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Staff accounts are created by an admin from the Staff manager.
-        </p>
-      </div>
-    </div>
+      <p className="mt-6 text-center text-xs text-muted-foreground">
+        Staff accounts are created by an admin from the Staff manager.
+      </p>
+    </AuthShell>
   );
 }

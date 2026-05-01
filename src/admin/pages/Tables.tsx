@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAdminTables, type AdminTable } from "../useAdminTables";
+import { AdminEmptyState } from "../components/AdminEmptyState";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import { TableEditor } from "./TableEditor";
 import { TableQrModal } from "./TableQrModal";
@@ -470,24 +471,24 @@ function Empty({
   filter: Filter;
   onAdd: () => void;
 }) {
+  if (filter === "archived") {
+    return (
+      <AdminEmptyState
+        icon={Archive}
+        title="Nothing archived"
+        description="Archived tables show up here. Restore them anytime."
+        tone="neutral"
+        compact
+      />
+    );
+  }
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-12 text-center">
-      <p className="text-sm text-muted-foreground">
-        {filter === "archived"
-          ? "Nothing archived."
-          : filter === "all"
-          ? "No tables yet."
-          : "No active tables — add one to start accepting orders."}
-      </p>
-      {filter !== "archived" && (
-        <button
-          type="button"
-          onClick={onAdd}
-          className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
-        >
-          Add table
-        </button>
-      )}
-    </div>
+    <AdminEmptyState
+      icon={QrCode}
+      title={filter === "all" ? "No tables yet" : "No active tables"}
+      description="Each table gets its own QR code so guests can order without an app."
+      actionLabel="Add table"
+      onAction={onAdd}
+    />
   );
 }

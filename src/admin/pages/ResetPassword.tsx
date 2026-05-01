@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, Lock, Utensils } from "lucide-react";
+import { AlertCircle, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/auth/AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { AuthShell } from "../components/AuthShell";
 
 /**
  * Used after both:
@@ -83,24 +84,14 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground text-background">
-            <Utensils className="h-6 w-6" strokeWidth={2.4} />
-          </span>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight">
-            Set your password
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Choose a password you&apos;ll use to sign in next time.
-          </p>
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 rounded-3xl border border-border bg-card p-5"
-        >
+    <AuthShell
+      title="Set your password"
+      subtitle="Choose a password you'll use to sign in next time."
+    >
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-3xl border border-border bg-card p-5"
+      >
           <div className="space-y-1.5">
             <label htmlFor="password" className="text-sm font-semibold">
               New password
@@ -167,9 +158,8 @@ export default function ResetPasswordPage() {
             className="w-full rounded-full bg-foreground py-3 text-sm font-semibold text-background transition-transform hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
           >
             {submitting ? "Saving…" : "Save password"}
-          </button>
-        </form>
-      </div>
-    </div>
+        </button>
+      </form>
+    </AuthShell>
   );
 }

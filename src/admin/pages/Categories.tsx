@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { AdminEmptyState } from "../components/AdminEmptyState";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import {
   useAdminCategories,
@@ -691,15 +692,12 @@ function ListSkeleton() {
 
 function Empty({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-12 text-center">
-      <p className="text-sm text-muted-foreground">No categories yet.</p>
-      <button
-        type="button"
-        onClick={onAdd}
-        className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
-      >
-        Create the first
-      </button>
-    </div>
+    <AdminEmptyState
+      icon={Hash}
+      title="No categories yet"
+      description="Categories group your menu items — every item belongs to one."
+      actionLabel="Create the first"
+      onAction={onAdd}
+    />
   );
 }

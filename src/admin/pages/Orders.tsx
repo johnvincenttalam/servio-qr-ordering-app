@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, MessageSquare, Search, X } from "lucide-react";
+import { AlertCircle, ListOrdered, MessageSquare, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/utils";
 import { WaiterCallsBanner } from "@/components/common/WaiterCallsBanner";
@@ -14,6 +14,7 @@ import {
   ADMIN_STATUS_LABEL,
   ADMIN_STATUS_PILL,
 } from "../orderStatus";
+import { AdminEmptyState } from "../components/AdminEmptyState";
 import { OrderDetail } from "./OrderDetail";
 
 type StatusFilter = "all" | "active" | AdminOrderStatus;
@@ -490,23 +491,25 @@ function EmptyMessage({
   isFiltering: boolean;
   onClear: () => void;
 }) {
+  if (isFiltering) {
+    return (
+      <AdminEmptyState
+        icon={Search}
+        title="No matches"
+        description="Nothing matches your current filters. Clear them to see everything."
+        secondaryActionLabel="Clear filters"
+        onSecondaryAction={onClear}
+        tone="neutral"
+        compact
+      />
+    );
+  }
   return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border bg-card px-6 py-12 text-center">
-      <p className="text-sm text-muted-foreground">
-        {isFiltering
-          ? "No orders match your filters."
-          : "No orders yet — they'll appear here in real time."}
-      </p>
-      {isFiltering && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-muted active:scale-95"
-        >
-          Clear filters
-        </button>
-      )}
-    </div>
+    <AdminEmptyState
+      icon={ListOrdered}
+      title="No orders yet"
+      description="When customers place orders, they'll appear here in real time."
+    />
   );
 }
 
