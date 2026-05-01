@@ -1,11 +1,25 @@
-import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, Utensils } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { History as HistoryIcon, ShoppingCart, Utensils } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { getOrderHistory } from "@/lib/orderHistory";
 
 export function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const tableId = useAppStore((s) => s.tableId);
   const itemCount = useAppStore((s) => s.getCartItemCount());
+
+  // History button only renders when there's at least one past order
+  // on this device — keeps the header uncluttered for first-time
+  // visitors who'd just see an empty page if they tapped it. The
+  // re-check on pathname covers the moment right after checkout, when
+  // the user navigates from /checkout to /order-status and the order
+  // was just recorded.
+  const [hasHistory, setHasHistory] = useState(false);
+  useEffect(() => {
+    setHasHistory(getOrderHistory().length > 0);
+  }, [location.pathname]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card text-foreground">
@@ -17,11 +31,21 @@ export function Header() {
           <span className="text-lg font-bold tracking-tight">SERVIO</span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {tableId && (
             <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-semibold">
               Table {tableId}
             </span>
+          )}
+          {hasHistory && (
+            <button
+              onClick={() => navigate("/history")}
+              className="flex h-10 w-10 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
+              aria-label="Past orders"
+              title="Past orders"
+            >
+              <HistoryIcon className="h-5 w-5" strokeWidth={2.2} />
+            </button>
           )}
           <button
             onClick={() => navigate("/cart")}

@@ -8,6 +8,7 @@ import MenuPage from "@/pages/Menu";
 import CartPage from "@/pages/Cart";
 import CheckoutPage from "@/pages/Checkout";
 import OrderStatusPage from "@/pages/OrderStatus";
+import HistoryPage from "@/pages/History";
 
 const AdminApp = lazy(() => import("@/admin/AdminApp"));
 const KitchenApp = lazy(() => import("@/kitchen/KitchenApp"));
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/order-status" element={<OrderStatusPage />} />
+            <Route path="/history" element={<HistoryPage />} />
           </Route>
 
           {/* Admin (lazy chunk) */}

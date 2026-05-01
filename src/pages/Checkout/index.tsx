@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { User, MessageSquare, Receipt, ChevronRight } from "lucide-react";
@@ -8,6 +8,7 @@ import { CartSummary } from "@/components/cart/CartSummary";
 import { OrderSuccessModal } from "@/components/checkout/OrderSuccessModal";
 import { useAppStore } from "@/store/useAppStore";
 import { submitOrder } from "@/services/order-service";
+import { getLastCustomerName, recordOrder } from "@/lib/orderHistory";
 import { formatPrice } from "@/utils";
 
 export default function CheckoutPage() {
@@ -22,6 +23,13 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
+
+  // Pre-fill the name from the most recent past order on this device.
+  // Returning customers don't have to retype it on every visit.
+  useEffect(() => {
+    const last = getLastCustomerName();
+    if (last) setCustomerName(last);
+  }, []);
 
   if (!tableId) {
     navigate("/", { replace: true });
@@ -44,6 +52,16 @@ export default function CheckoutPage() {
         total,
         customerName: customerName.trim() || undefined,
         notes: notes.trim() || undefined,
+      });
+      // Record on this device so the customer can see / reorder it
+      // later from /history. Failures are swallowed inside the helper —
+      // recording is best-effort and shouldn't block checkout.
+      recordOrder({
+        id: order.id,
+        total: order.total,
+        createdAt: order.createdAt,
+        customerName: order.customerName,
+        tableId: order.tableId,
       });
       setPlacedOrderId(order.id);
     } catch {
