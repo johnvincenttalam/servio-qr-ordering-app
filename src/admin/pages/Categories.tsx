@@ -34,6 +34,24 @@ import { cn } from "@/lib/utils";
 const ID_RE = /^[a-z0-9-]{2,32}$/;
 const RESERVED_IDS = new Set(["all", "none", "null", "undefined"]);
 
+/**
+ * Convert a human label into a clean URL-safe slug. Decomposes accents
+ * ("café" → "cafe"), drops anything that isn't a-z / 0-9, collapses
+ * runs of hyphens, trims, and caps at 32 chars to fit the column limit.
+ */
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    // NFD splits accented letters into base + combining mark, so the
+    // base letter survives the next pass while the diacritic gets
+    // stripped along with everything else non-alnum.
+    .normalize("NFD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+}
+
 export default function CategoriesPage() {
   const {
     items,
@@ -289,6 +307,12 @@ function CategoryEditor({
   const [label, setLabel] = useState("");
   // Null means "no icon picked" → renders the Tag fallback.
   const [icon, setIcon] = useState<string | null>(null);
+  // While idTouched is false, the id auto-mirrors a slug of the label.
+  // The moment the admin types directly into the id field we stop
+  // mirroring so their custom slug isn't overwritten on the next
+  // keystroke. Edit mode starts touched (id is fixed and uneditable).
+  const [idTouched, setIdTouched] = useState(false);
+  const [idCustomizing, setIdCustomizing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -297,9 +321,18 @@ function CategoryEditor({
     setId(isNew ? "" : category?.id ?? "");
     setLabel(category?.label ?? "");
     setIcon(category?.icon ?? null);
+    setIdTouched(!isNew);
+    setIdCustomizing(false);
     setError(null);
     setSubmitting(false);
   }, [open, isNew, category]);
+
+  const handleLabelChange = (next: string) => {
+    setLabel(next);
+    if (!idTouched) {
+      setId(slugify(next));
+    }
+  };
 
   const trimmedId = id.trim().toLowerCase();
   const trimmedLabel = label.trim();
@@ -350,31 +383,83 @@ function CategoryEditor({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Label
+            </label>
+            <div className="relative">
+              <Type
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                strokeWidth={2.2}
+              />
+              <Input
+                value={label}
+                onChange={(e) => handleLabelChange(e.target.value)}
+                placeholder="Breakfast"
+                required
+                maxLength={60}
+                className="h-11 rounded-xl pl-9"
+                autoFocus
+              />
+            </div>
+          </div>
+
           {isNew && (
+            // ID is auto-derived from the label by default. We only
+            // surface the field when the admin opts into customizing,
+            // since the value is internal and a slug is almost always
+            // fine. Validation errors still always surface so a clash
+            // or a label that slugifies to nothing can be fixed.
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                ID{" "}
-                <span className="ml-1 normal-case tracking-normal text-muted-foreground/80">
-                  used internally
-                </span>
-              </label>
-              <div className="relative">
-                <Hash
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                  strokeWidth={2.2}
-                />
-                <Input
-                  value={id}
-                  onChange={(e) => setId(e.target.value.toLowerCase())}
-                  placeholder="breakfast"
-                  autoFocus
-                  required
-                  maxLength={32}
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  className="h-11 rounded-xl pl-9 lowercase font-mono"
-                />
-              </div>
+              {!idCustomizing ? (
+                <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="font-semibold uppercase tracking-wider">
+                    ID
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
+                    <Hash className="h-3 w-3" strokeWidth={2.4} />
+                    {trimmedId || "—"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdCustomizing(true);
+                      setIdTouched(true);
+                    }}
+                    className="font-semibold text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+                  >
+                    Customize
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    ID{" "}
+                    <span className="ml-1 normal-case tracking-normal text-muted-foreground/80">
+                      used internally
+                    </span>
+                  </label>
+                  <div className="relative">
+                    <Hash
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                      strokeWidth={2.2}
+                    />
+                    <Input
+                      value={id}
+                      onChange={(e) => {
+                        setId(e.target.value.toLowerCase());
+                        setIdTouched(true);
+                      }}
+                      placeholder="breakfast"
+                      required
+                      maxLength={32}
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      className="h-11 rounded-xl pl-9 lowercase font-mono"
+                    />
+                  </div>
+                </>
+              )}
               {trimmedId && !idValid && (
                 <p className="text-[11px] text-destructive">
                   2–32 lowercase letters, digits, or hyphens.
@@ -392,27 +477,6 @@ function CategoryEditor({
               )}
             </div>
           )}
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Label
-            </label>
-            <div className="relative">
-              <Type
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                strokeWidth={2.2}
-              />
-              <Input
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="Breakfast"
-                required
-                maxLength={60}
-                className="h-11 rounded-xl pl-9"
-                autoFocus={!isNew}
-              />
-            </div>
-          </div>
 
           <IconPicker value={icon} onChange={setIcon} />
 
