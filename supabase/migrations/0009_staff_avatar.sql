@@ -10,8 +10,12 @@ alter table public.staff
   add column if not exists avatar_url text;
 
 -- ─────────────────────────────────────────────────────────────────────────
--- 2. list_staff() — replace the function so admins see the avatar_url too
+-- 2. list_staff() — replace the function so admins see the avatar_url too.
+-- We drop first because Postgres rejects "create or replace function" when
+-- the output column list changes (we're adding avatar_url to the table).
 -- ─────────────────────────────────────────────────────────────────────────
+drop function if exists public.list_staff();
+
 create or replace function public.list_staff()
 returns table (
   user_id uuid,
