@@ -24,7 +24,10 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const INIT_TIMEOUT_MS = 2000;
-const ROLE_QUERY_TIMEOUT_MS = 3000;
+// Generous timeout: covers Supabase cold-start and tabs returning from
+// backgrounded sleep. A failure here just means "we don't know yet" — we
+// keep the cached role rather than logging the user out (see below).
+const ROLE_QUERY_TIMEOUT_MS = 8000;
 
 const ROLE_CACHE_KEY = "servio.auth.role";
 const NAME_CACHE_KEY = "servio.auth.displayName";
@@ -101,9 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     let firstEventReceived = false;
 
-    async function fetchStaffFromDb(
-      userId: string
-    ): Promise<CachedStaff | null> {
+    type FetchResult =
+      | { ok: true; staff: CachedStaff | null }
+      | { ok: false };
+
+    async function fetchStaffFromDb(userId: string): Promise<FetchResult> {
       try {
         const { data, error } = await withTimeout(
           supabase
@@ -116,27 +121,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         if (error) {
           console.error("[auth] loadStaff error:", error);
-          return null;
+          return { ok: false };
         }
-        if (!data?.role) return null;
+        if (!data?.role) return { ok: true, staff: null };
         return {
-          role: data.role as StaffRole,
-          displayName: (data.display_name as string | null) ?? null,
-          avatarUrl: (data.avatar_url as string | null) ?? null,
+          ok: true,
+          staff: {
+            role: data.role as StaffRole,
+            displayName: (data.display_name as string | null) ?? null,
+            avatarUrl: (data.avatar_url as string | null) ?? null,
+          },
         };
       } catch (err) {
         console.error("[auth] loadStaff failed:", err);
-        return null;
+        return { ok: false };
       }
     }
 
     async function backgroundRefreshStaff(userId: string) {
-      const fresh = await fetchStaffFromDb(userId);
+      const result = await fetchStaffFromDb(userId);
       if (cancelled) return;
-      setCachedStaff(userId, fresh);
-      setRole(fresh?.role ?? null);
-      setDisplayName(fresh?.displayName ?? null);
-      setAvatarUrl(fresh?.avatarUrl ?? null);
+      // Only update on a definitive answer. A transient timeout/network
+      // error must not blow away the cached role — that's the path that
+      // was logging users out on refresh.
+      if (!result.ok) return;
+      setCachedStaff(userId, result.staff);
+      setRole(result.staff?.role ?? null);
+      setDisplayName(result.staff?.displayName ?? null);
+      setAvatarUrl(result.staff?.avatarUrl ?? null);
     }
 
     async function handleAuthEvent(session: { user: User | null } | null) {
@@ -154,22 +166,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const cached = getCachedStaff(nextUser.id);
       if (cached) {
-        // Instant: trust cache, unblock UI now, refresh in background
+        // Instant: trust cache, unblock UI now, refresh in background.
         setRole(cached.role);
         setDisplayName(cached.displayName);
         setAvatarUrl(cached.avatarUrl);
         if (!cancelled) setIsLoading(false);
         backgroundRefreshStaff(nextUser.id);
-      } else {
-        // No cache: wait for DB (with timeout) before unblocking
-        const fresh = await fetchStaffFromDb(nextUser.id);
-        if (cancelled) return;
-        setCachedStaff(nextUser.id, fresh);
-        setRole(fresh?.role ?? null);
-        setDisplayName(fresh?.displayName ?? null);
-        setAvatarUrl(fresh?.avatarUrl ?? null);
-        setIsLoading(false);
+        return;
       }
+
+      // No cache: wait for DB. Retry once on transient error so a single
+      // slow request doesn't immediately drop us into the unauthorized
+      // login screen.
+      let result = await fetchStaffFromDb(nextUser.id);
+      if (!result.ok && !cancelled) {
+        await new Promise((r) => window.setTimeout(r, 500));
+        result = await fetchStaffFromDb(nextUser.id);
+      }
+      if (cancelled) return;
+      const staff = result.ok ? result.staff : null;
+      setCachedStaff(nextUser.id, staff);
+      setRole(staff?.role ?? null);
+      setDisplayName(staff?.displayName ?? null);
+      setAvatarUrl(staff?.avatarUrl ?? null);
+      setIsLoading(false);
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange(
