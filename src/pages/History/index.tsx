@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -17,6 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
 import { fetchOrderStatus } from "@/services/order-service";
+import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import {
   getOrderHistory,
   type OrderHistoryEntry,
@@ -77,18 +78,27 @@ export default function HistoryPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  // Fetch the live order rows in parallel on mount. Each entry's status
-  // and items might have moved since the customer placed it.
-  useEffect(() => {
-    let cancelled = false;
+  // Set of order ids we care about — used by the realtime handler to
+  // ignore changes for orders that aren't in this device's history.
+  const historyIds = useMemo(
+    () => new Set(rows.map((r) => r.entry.id)),
+    [rows]
+  );
+
+  const cancelledRef = useRef(false);
+
+  /**
+   * Re-fetch all history orders in parallel. We could refetch only the
+   * row that just changed, but the list is capped at 20 entries so the
+   * extra reads are cheap and the code stays simple.
+   */
+  const refetchAll = useCallback(async () => {
     const entries = getOrderHistory();
     if (entries.length === 0) {
-      setRows([]);
+      if (!cancelledRef.current) setRows([]);
       return;
     }
-    setRows(entries.map((entry) => ({ entry, order: undefined })));
-
-    Promise.all(
+    const fresh = await Promise.all(
       entries.map(async (entry) => {
         try {
           const order = await fetchOrderStatus(entry.id);
@@ -97,14 +107,35 @@ export default function HistoryPage() {
           return { entry, order: null };
         }
       })
-    ).then((next) => {
-      if (!cancelled) setRows(next);
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    );
+    if (!cancelledRef.current) setRows(fresh);
   }, []);
+
+  // Initial load: render skeleton rows from the localStorage index, then
+  // fetch live state in parallel.
+  useEffect(() => {
+    cancelledRef.current = false;
+    const entries = getOrderHistory();
+    setRows(entries.map((entry) => ({ entry, order: undefined })));
+    if (entries.length > 0) refetchAll();
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [refetchAll]);
+
+  // Realtime: any change on the orders table triggers a refetch IF the
+  // changed row is one of ours. Filtering client-side is fine — the
+  // payload's `new` and `old` records carry the id.
+  useRealtimeTables({
+    channel: "customer-history",
+    tables: ["orders"],
+    onChange: (_table, payload) => {
+      const row = (payload.new ?? payload.old) as { id?: string } | null;
+      if (row?.id && historyIds.has(row.id)) {
+        refetchAll();
+      }
+    },
+  });
 
   const handleReorder = (order: Order) => {
     // Drop archived / unavailable items rather than blocking the whole
