@@ -54,6 +54,7 @@ interface UseAdminStaffReturn {
   refetch: () => Promise<void>;
   invite: (params: InviteParams) => Promise<InviteResult>;
   setRole: (userId: string, role: StaffRole) => Promise<void>;
+  setDisplayName: (userId: string, name: string | null) => Promise<void>;
   remove: (userId: string) => Promise<void>;
 }
 
@@ -144,6 +145,31 @@ export function useAdminStaff(): UseAdminStaffReturn {
     [refetch]
   );
 
+  const setDisplayName = useCallback(
+    async (userId: string, name: string | null) => {
+      const trimmed = name?.trim() || null;
+
+      // Optimistic
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.userId === userId ? { ...m, displayName: trimmed } : m
+        )
+      );
+
+      const { error: updateError } = await supabase
+        .from("staff")
+        .update({ display_name: trimmed })
+        .eq("user_id", userId);
+
+      if (updateError) {
+        console.error("[admin/staff] name update failed:", updateError);
+        toast.error("Couldn't save name");
+        await refetch();
+      }
+    },
+    [refetch]
+  );
+
   const remove = useCallback(
     async (userId: string) => {
       setMembers((prev) => prev.filter((m) => m.userId !== userId));
@@ -166,5 +192,14 @@ export function useAdminStaff(): UseAdminStaffReturn {
     [refetch]
   );
 
-  return { members, isLoading, error, refetch, invite, setRole, remove };
+  return {
+    members,
+    isLoading,
+    error,
+    refetch,
+    invite,
+    setRole,
+    setDisplayName,
+    remove,
+  };
 }

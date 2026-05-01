@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertCircle,
   Mail,
+  Pencil,
   Plus,
   ShieldCheck,
   ChefHat,
@@ -48,7 +49,15 @@ const ROLE_PILL: Record<StaffRole, string> = {
 
 export default function StaffPage() {
   const { user } = useAuth();
-  const { members, isLoading, error, invite, setRole, remove } = useAdminStaff();
+  const {
+    members,
+    isLoading,
+    error,
+    invite,
+    setRole,
+    setDisplayName,
+    remove,
+  } = useAdminStaff();
   const [now, setNow] = useState(() => Date.now());
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null);
@@ -101,6 +110,7 @@ export default function StaffPage() {
           currentUserId={user?.id ?? null}
           now={now}
           onChangeRole={setRole}
+          onChangeName={setDisplayName}
           onRemove={(m) => setRemoveTarget(m)}
         />
       )}
@@ -128,12 +138,14 @@ function StaffTable({
   currentUserId,
   now,
   onChangeRole,
+  onChangeName,
   onRemove,
 }: {
   members: StaffMember[];
   currentUserId: string | null;
   now: number;
   onChangeRole: (id: string, role: StaffRole) => void;
+  onChangeName: (id: string, name: string | null) => void;
   onRemove: (m: StaffMember) => void;
 }) {
   return (
@@ -155,6 +167,7 @@ function StaffTable({
               isSelf={m.userId === currentUserId}
               now={now}
               onChangeRole={onChangeRole}
+              onChangeName={onChangeName}
               onRemove={onRemove}
             />
           ))}
@@ -169,21 +182,22 @@ function StaffRow({
   isSelf,
   now,
   onChangeRole,
+  onChangeName,
   onRemove,
 }: {
   member: StaffMember;
   isSelf: boolean;
   now: number;
   onChangeRole: (id: string, role: StaffRole) => void;
+  onChangeName: (id: string, name: string | null) => void;
   onRemove: (m: StaffMember) => void;
 }) {
   const Icon = ROLE_ICON[member.role];
   const initial =
     (member.displayName?.[0] ?? member.email[0] ?? "?").toUpperCase();
-  const displayName = member.displayName ?? member.email.split("@")[0];
 
   return (
-    <tr className="border-b border-border/60 transition-colors last:border-b-0 hover:bg-muted/30">
+    <tr className="group border-b border-border/60 transition-colors last:border-b-0 hover:bg-muted/30">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <span
@@ -194,15 +208,13 @@ function StaffRow({
           >
             {initial}
           </span>
-          <div className="min-w-0">
-            <p className="flex items-center gap-1.5 truncate font-semibold leading-tight">
-              {displayName}
-              {isSelf && (
-                <span className="rounded-full bg-muted px-1.5 py-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  you
-                </span>
-              )}
-            </p>
+          <div className="min-w-0 flex-1">
+            <NameField
+              displayName={member.displayName}
+              fallback={member.email.split("@")[0]}
+              isSelf={isSelf}
+              onSave={(value) => onChangeName(member.userId, value)}
+            />
             <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
               <Mail className="h-3 w-3 shrink-0" strokeWidth={2.2} />
               {member.email}
@@ -250,6 +262,103 @@ function StaffRow({
         </button>
       </td>
     </tr>
+  );
+}
+
+function NameField({
+  displayName,
+  fallback,
+  isSelf,
+  onSave,
+}: {
+  displayName: string | null;
+  fallback: string;
+  isSelf: boolean;
+  onSave: (value: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(displayName ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep the draft in sync if the row updates while we're not editing
+  // (e.g. another admin renamed this person via realtime).
+  useEffect(() => {
+    if (!editing) setDraft(displayName ?? "");
+  }, [displayName, editing]);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    const next = trimmed.length > 0 ? trimmed : null;
+    if (next !== (displayName ?? null)) {
+      onSave(next);
+    }
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(displayName ?? "");
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+        maxLength={60}
+        placeholder={fallback}
+        aria-label="Display name"
+        className="w-full rounded-md border border-foreground/30 bg-background px-1.5 py-0.5 text-sm font-semibold leading-tight focus:border-foreground focus:outline-none"
+      />
+    );
+  }
+
+  const visible = displayName?.trim() || fallback;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="Edit name"
+      className="group/name flex items-center gap-1.5 rounded-md text-left -mx-1 px-1 py-0.5 hover:bg-muted/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30"
+    >
+      <span
+        className={cn(
+          "truncate font-semibold leading-tight",
+          !displayName && "text-foreground/70"
+        )}
+      >
+        {visible}
+      </span>
+      {isSelf && (
+        <span className="rounded-full bg-muted px-1.5 py-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          you
+        </span>
+      )}
+      <Pencil
+        className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/name:opacity-100"
+        strokeWidth={2.2}
+        aria-hidden
+      />
+    </button>
   );
 }
 
