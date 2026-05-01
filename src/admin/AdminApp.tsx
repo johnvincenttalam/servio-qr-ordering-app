@@ -7,6 +7,7 @@ import MenuManagerPage from "./pages/MenuManager";
 import OrdersPage from "./pages/Orders";
 import BannersPage from "./pages/Banners";
 import StaffPage from "./pages/Staff";
+import TablesPage from "./pages/Tables";
 
 export default function AdminApp() {
   return (
@@ -43,6 +44,14 @@ export default function AdminApp() {
           element={
             <AuthGuard allowedRoles={["admin"]}>
               <StaffPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="tables"
+          element={
+            <AuthGuard allowedRoles={["admin"]}>
+              <TablesPage />
             </AuthGuard>
           }
         />

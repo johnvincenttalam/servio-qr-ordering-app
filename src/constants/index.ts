@@ -1,19 +1,6 @@
 import { CheckCircle2, ChefHat, Clock, type LucideIcon } from "lucide-react";
 import type { MenuCategory, OrderStatus } from "@/types";
 
-export const VALID_TABLE_IDS = [
-  "T1",
-  "T2",
-  "T3",
-  "T4",
-  "T5",
-  "T6",
-  "T7",
-  "T8",
-  "T9",
-  "T10",
-] as const;
-
 export const CURRENCY_SYMBOL = "₱";
 
 export const CATEGORY_LABELS: Record<MenuCategory, string> = {

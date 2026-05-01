@@ -6,6 +6,7 @@ import {
   UtensilsCrossed,
   Image as ImageIcon,
   Users,
+  QrCode,
   ChefHat,
   LogOut,
   Utensils,
@@ -62,7 +63,10 @@ export function Sidebar() {
         <SidebarLink to="/admin/menu" icon={UtensilsCrossed} label="Menu" />
         <SidebarLink to="/admin/banners" icon={ImageIcon} label="Banners" />
         {role === "admin" && (
-          <SidebarLink to="/admin/staff" icon={Users} label="Staff" />
+          <>
+            <SidebarLink to="/admin/tables" icon={QrCode} label="Tables" />
+            <SidebarLink to="/admin/staff" icon={Users} label="Staff" />
+          </>
         )}
 
         <div className="my-3 px-3">
