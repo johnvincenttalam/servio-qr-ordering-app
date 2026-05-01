@@ -66,6 +66,8 @@ export type MenuCategory = string;
 export interface Category {
   id: string;
   label: string;
+  /** Lucide icon component name. Resolved via lib/categoryIcons. */
+  icon?: string | null;
   position: number;
   archivedAt?: number | null;
 }

@@ -45,6 +45,7 @@ export interface MenuItemDraft {
 interface CategoryRow {
   id: string;
   label: string;
+  icon: string | null;
   position: number;
   archived_at: string | null;
 }
@@ -53,6 +54,7 @@ function rowToCategory(row: CategoryRow): Category {
   return {
     id: row.id,
     label: row.label,
+    icon: row.icon,
     position: row.position,
     archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
   };
@@ -98,7 +100,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
         .order("position", { ascending: true }),
       supabase
         .from("categories")
-        .select("id, label, position, archived_at")
+        .select("id, label, icon, position, archived_at")
         .is("archived_at", null)
         .order("position", { ascending: true }),
     ]);

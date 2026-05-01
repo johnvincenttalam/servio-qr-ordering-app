@@ -8,7 +8,7 @@ import type { MenuItem, MenuCategory, PromoBanner } from "@/types";
 
 interface UseMenuReturn {
   items: MenuItem[];
-  categories: { id: MenuCategory; label: string }[];
+  categories: { id: MenuCategory; label: string; icon: string | null }[];
   banners: PromoBanner[];
   isLoading: boolean;
   error: string | null;
@@ -17,7 +17,7 @@ interface UseMenuReturn {
 export function useMenu(): UseMenuReturn {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<
-    { id: MenuCategory; label: string }[]
+    { id: MenuCategory; label: string; icon: string | null }[]
   >([]);
   const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [isLoading, setIsLoading] = useState(true);

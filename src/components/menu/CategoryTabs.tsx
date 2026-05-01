@@ -1,10 +1,11 @@
 import { useRef } from "react";
-import { LayoutGrid, Tag } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveCategoryIcon } from "@/lib/categoryIcons";
 import type { MenuCategory } from "@/types";
 
 interface CategoryTabsProps {
-  categories: { id: MenuCategory; label: string }[];
+  categories: { id: MenuCategory; label: string; icon: string | null }[];
   activeCategory: MenuCategory | "all";
   onSelect: (category: MenuCategory | "all") => void;
 }
@@ -16,8 +17,8 @@ export function CategoryTabs({
 }: CategoryTabsProps) {
   const lastTappedRef = useRef<MenuCategory | "all" | null>(null);
 
-  const tabs: { id: MenuCategory | "all"; label: string }[] = [
-    { id: "all", label: "All" },
+  const tabs: { id: MenuCategory | "all"; label: string; icon: string | null }[] = [
+    { id: "all", label: "All", icon: null },
     ...categories,
   ];
 
@@ -32,10 +33,10 @@ export function CategoryTabs({
         {tabs.map((cat) => {
           const isActive = activeCategory === cat.id;
           const wasJustTapped = lastTappedRef.current === cat.id;
-          // Categories are admin-defined now, so a per-id icon map can't
-          // cover them. Use LayoutGrid for the special "All" tab and a
-          // generic Tag for everything else.
-          const Icon = cat.id === "all" ? LayoutGrid : Tag;
+          // "All" stays on LayoutGrid; every other tab resolves its
+          // admin-picked icon (Tag fallback if unset).
+          const Icon =
+            cat.id === "all" ? LayoutGrid : resolveCategoryIcon(cat.icon);
           return (
             <button
               key={cat.id}

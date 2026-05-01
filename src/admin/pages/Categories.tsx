@@ -5,10 +5,10 @@ import {
   ArchiveRestore,
   ArrowDown,
   ArrowUp,
+  Check,
   Hash,
   Pencil,
   Plus,
-  Tag,
   Type,
 } from "lucide-react";
 import {
@@ -24,6 +24,10 @@ import {
   useAdminCategories,
   type CategoryDraft,
 } from "../useAdminCategories";
+import {
+  CATEGORY_ICONS,
+  resolveCategoryIcon,
+} from "@/lib/categoryIcons";
 import type { Category } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +40,7 @@ export default function CategoriesPage() {
     isLoading,
     error,
     create,
-    saveLabel,
+    saveDetails,
     archive,
     restore,
     move,
@@ -128,7 +132,7 @@ export default function CategoriesPage() {
           setEditTargetId(null);
         }}
         onCreate={create}
-        onSaveLabel={saveLabel}
+        onSaveDetails={saveDetails}
       />
 
       <ArchiveDialog
@@ -167,6 +171,7 @@ function CategoriesList({
         const activeIndex = isArchived
           ? -1
           : items.filter((c) => c.archivedAt === null).findIndex((c) => c.id === cat.id);
+        const Icon = resolveCategoryIcon(cat.icon);
         return (
           <li
             key={cat.id}
@@ -178,7 +183,7 @@ function CategoriesList({
             )}
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
-              <Tag className="h-4 w-4" strokeWidth={2.2} />
+              <Icon className="h-4 w-4" strokeWidth={2.2} />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -267,7 +272,7 @@ function CategoryEditor({
   existingIds,
   onClose,
   onCreate,
-  onSaveLabel,
+  onSaveDetails,
 }: {
   open: boolean;
   category: Category | null;
@@ -275,10 +280,15 @@ function CategoryEditor({
   existingIds: readonly string[];
   onClose: () => void;
   onCreate: (draft: CategoryDraft) => Promise<void>;
-  onSaveLabel: (id: string, label: string) => Promise<void>;
+  onSaveDetails: (
+    id: string,
+    fields: { label: string; icon: string | null }
+  ) => Promise<void>;
 }) {
   const [id, setId] = useState("");
   const [label, setLabel] = useState("");
+  // Null means "no icon picked" → renders the Tag fallback.
+  const [icon, setIcon] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -286,6 +296,7 @@ function CategoryEditor({
     if (!open) return;
     setId(isNew ? "" : category?.id ?? "");
     setLabel(category?.label ?? "");
+    setIcon(category?.icon ?? null);
     setError(null);
     setSubmitting(false);
   }, [open, isNew, category]);
@@ -306,9 +317,9 @@ function CategoryEditor({
     setError(null);
     try {
       if (isNew) {
-        await onCreate({ id: trimmedId, label: trimmedLabel });
+        await onCreate({ id: trimmedId, label: trimmedLabel, icon });
       } else if (category) {
-        await onSaveLabel(category.id, trimmedLabel);
+        await onSaveDetails(category.id, { label: trimmedLabel, icon });
       }
       onClose();
     } catch (err) {
@@ -403,6 +414,8 @@ function CategoryEditor({
             </div>
           </div>
 
+          <IconPicker value={icon} onChange={setIcon} />
+
           {error && (
             <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -433,6 +446,57 @@ function CategoryEditor({
         </footer>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function IconPicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Icon{" "}
+        <span className="ml-1 normal-case tracking-normal text-muted-foreground/80">
+          shown in tabs and menu rows
+        </span>
+      </label>
+      {/*
+        Curated grid — clicking the same tile again clears the selection,
+        and the cleared state renders the Tag fallback throughout the app.
+      */}
+      <div className="grid grid-cols-8 gap-1.5 rounded-2xl border border-border bg-muted/40 p-2">
+        {CATEGORY_ICONS.map(({ name, icon: Icon }) => {
+          const isActive = value === name;
+          return (
+            <button
+              key={name}
+              type="button"
+              onClick={() => onChange(isActive ? null : name)}
+              aria-pressed={isActive}
+              title={name}
+              className={cn(
+                "relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all active:scale-95",
+                isActive
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-transparent bg-card text-foreground/70 hover:border-border hover:text-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4" strokeWidth={2.2} />
+              {isActive && (
+                <Check
+                  className="absolute right-0.5 top-0.5 h-2.5 w-2.5"
+                  strokeWidth={3}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

@@ -48,16 +48,17 @@ export async function fetchMenu(): Promise<MenuItem[]> {
 interface CategoryRow {
   id: string;
   label: string;
+  icon: string | null;
 }
 
 export async function fetchCategories(): Promise<
-  { id: MenuCategory; label: string }[]
+  { id: MenuCategory; label: string; icon: string | null }[]
 > {
   // RLS hides archived rows from anonymous customers, so the order here
   // is just position — no need for a separate filter.
   const { data, error } = await supabase
     .from("categories")
-    .select("id, label")
+    .select("id, label, icon")
     .is("archived_at", null)
     .order("position", { ascending: true });
   if (error) throw error;

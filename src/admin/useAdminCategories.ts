@@ -7,6 +7,7 @@ import type { Category } from "@/types";
 interface CategoryRow {
   id: string;
   label: string;
+  icon: string | null;
   position: number;
   archived_at: string | null;
 }
@@ -15,6 +16,7 @@ function rowToCategory(row: CategoryRow): Category {
   return {
     id: row.id,
     label: row.label,
+    icon: row.icon,
     position: row.position,
     archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
   };
@@ -23,6 +25,7 @@ function rowToCategory(row: CategoryRow): Category {
 export interface CategoryDraft {
   id: string;
   label: string;
+  icon: string | null;
 }
 
 interface UseAdminCategoriesReturn {
@@ -31,7 +34,11 @@ interface UseAdminCategoriesReturn {
   error: string | null;
   refetch: () => Promise<void>;
   create: (draft: CategoryDraft) => Promise<void>;
-  saveLabel: (id: string, label: string) => Promise<void>;
+  /** Updates label and icon together — the editor saves both at once. */
+  saveDetails: (
+    id: string,
+    fields: { label: string; icon: string | null }
+  ) => Promise<void>;
   archive: (id: string) => Promise<void>;
   restore: (id: string) => Promise<void>;
   move: (id: string, direction: "up" | "down") => Promise<void>;
@@ -51,7 +58,7 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
   const refetch = useCallback(async () => {
     const { data, error: queryError } = await supabase
       .from("categories")
-      .select("id, label, position, archived_at");
+      .select("id, label, icon, position, archived_at");
 
     if (queryError) {
       console.error("[admin/categories] fetch failed:", queryError);
@@ -106,6 +113,7 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
         .insert({
           id: trimmedId,
           label: trimmedLabel,
+          icon: draft.icon,
           position: maxPosition + 10,
         });
       if (insertError) {
@@ -117,20 +125,26 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
     [items, refetch]
   );
 
-  const saveLabel = useCallback(
-    async (id: string, label: string) => {
-      const trimmed = label.trim();
+  const saveDetails = useCallback(
+    async (
+      id: string,
+      fields: { label: string; icon: string | null }
+    ) => {
+      const trimmed = fields.label.trim();
+      const icon = fields.icon ?? null;
       // Optimistic
       setItems((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, label: trimmed } : c))
+        prev.map((c) =>
+          c.id === id ? { ...c, label: trimmed, icon } : c
+        )
       );
       const { error: updateError } = await supabase
         .from("categories")
-        .update({ label: trimmed })
+        .update({ label: trimmed, icon })
         .eq("id", id);
       if (updateError) {
         console.error("[admin/categories] save failed:", updateError);
-        toast.error("Couldn't save label");
+        toast.error("Couldn't save changes");
         await refetch();
       }
     },
@@ -259,7 +273,7 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
     error,
     refetch,
     create,
-    saveLabel,
+    saveDetails,
     archive,
     restore,
     move,
