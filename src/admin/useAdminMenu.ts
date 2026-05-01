@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import { formatPrice } from "@/utils";
 import type { Category, MenuCategory, MenuItem, MenuOption } from "@/types";
 
 interface MenuItemRow {
@@ -68,6 +69,7 @@ interface UseAdminMenuReturn {
   error: string | null;
   refetch: () => Promise<void>;
   setInStock: (id: string, inStock: boolean) => Promise<void>;
+  setPrice: (id: string, price: number) => Promise<void>;
   saveItem: (id: string, draft: MenuItemDraft) => Promise<void>;
   createItem: (draft: MenuItemDraft) => Promise<void>;
   archiveItem: (id: string) => Promise<void>;
@@ -185,6 +187,63 @@ export function useAdminMenu(): UseAdminMenuReturn {
     [items, refetch]
   );
 
+  const setPrice = useCallback(
+    async (id: string, price: number) => {
+      const prevItem = items.find((it) => it.id === id);
+      const prevPrice = prevItem?.price;
+
+      // Optimistic — paint the new price immediately so the click feels
+      // instant. Reverts on any failure path (network, RLS, etc.).
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, price } : item))
+      );
+
+      const { error: updateError } = await supabase
+        .from("menu_items")
+        .update({ price })
+        .eq("id", id);
+
+      if (updateError) {
+        console.error("[admin/menu] price update failed:", updateError);
+        toast.error("Couldn't update price — try again");
+        await refetch();
+        return;
+      }
+
+      // Successful save: surface an undo toast just like setInStock so a
+      // mis-typed price is one click to revert.
+      if (prevPrice !== undefined && prevPrice !== price) {
+        const name = prevItem?.name ?? "Item";
+        toast(
+          `${name} price ${formatPrice(prevPrice)} → ${formatPrice(price)}`,
+          {
+            action: {
+              label: "Undo",
+              onClick: async () => {
+                setItems((prev) =>
+                  prev.map((item) =>
+                    item.id === id ? { ...item, price: prevPrice } : item
+                  )
+                );
+                const { error: undoError } = await supabase
+                  .from("menu_items")
+                  .update({ price: prevPrice })
+                  .eq("id", id);
+                if (undoError) {
+                  console.error("[admin/menu] price undo failed:", undoError);
+                  toast.error("Couldn't undo — try again");
+                  await refetch();
+                }
+              },
+            },
+            duration: 4000,
+          }
+        );
+      }
+    },
+    [items, refetch]
+  );
+
   const draftToRow = (draft: MenuItemDraft) => ({
     name: draft.name,
     price: draft.price,
@@ -258,6 +317,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
     error,
     refetch,
     setInStock,
+    setPrice,
     saveItem,
     createItem,
     archiveItem,

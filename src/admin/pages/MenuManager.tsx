@@ -10,8 +10,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/utils";
 import { useAdminMenu } from "../useAdminMenu";
+import { InlinePriceEdit } from "../components/InlinePriceEdit";
 import { MenuItemEditor } from "./MenuItemEditor";
 import type { Category, MenuItem, MenuCategory } from "@/types";
 
@@ -32,6 +32,7 @@ export default function MenuManagerPage() {
     isLoading,
     error,
     setInStock,
+    setPrice,
     saveItem,
     createItem,
     archiveItem,
@@ -190,6 +191,7 @@ export default function MenuManagerPage() {
               categoryLabel={labelFor(item.category)}
               showCategory={filter === "all"}
               onToggleStock={(value) => setInStock(item.id, value)}
+              onSetPrice={(price) => setPrice(item.id, price)}
               onEdit={() => setDrawer({ mode: "edit", item })}
             />
           ))}
@@ -203,6 +205,7 @@ export default function MenuManagerPage() {
               categoryLabel={labelFor(item.category)}
               showCategory={filter === "all"}
               onToggleStock={(value) => setInStock(item.id, value)}
+              onSetPrice={(price) => setPrice(item.id, price)}
               onEdit={() => setDrawer({ mode: "edit", item })}
             />
           ))}
@@ -373,12 +376,14 @@ function MenuItemRow({
   categoryLabel,
   showCategory,
   onToggleStock,
+  onSetPrice,
   onEdit,
 }: {
   item: MenuItem;
   categoryLabel: string;
   showCategory: boolean;
   onToggleStock: (value: boolean) => void;
+  onSetPrice: (price: number) => Promise<void>;
   onEdit: () => void;
 }) {
   const inStock = item.inStock !== false;
@@ -446,9 +451,9 @@ function MenuItemRow({
         </div>
       </button>
 
-      <span className="w-20 shrink-0 text-right text-sm font-semibold tabular-nums">
-        {formatPrice(item.price)}
-      </span>
+      <div className="w-20 shrink-0 text-right text-sm font-semibold">
+        <InlinePriceEdit value={item.price} onSave={onSetPrice} />
+      </div>
 
       <StockSwitch
         inStock={inStock}
@@ -552,12 +557,14 @@ function MenuItemCard({
   categoryLabel,
   showCategory,
   onToggleStock,
+  onSetPrice,
   onEdit,
 }: {
   item: MenuItem;
   categoryLabel: string;
   showCategory: boolean;
   onToggleStock: (value: boolean) => void;
+  onSetPrice: (price: number) => Promise<void>;
   onEdit: () => void;
 }) {
   const inStock = item.inStock !== false;
@@ -624,9 +631,11 @@ function MenuItemCard({
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          <span className="text-base font-bold tabular-nums">
-            {formatPrice(item.price)}
-          </span>
+          <InlinePriceEdit
+            value={item.price}
+            onSave={onSetPrice}
+            className="text-base font-bold"
+          />
           <div className="flex items-center gap-2">
             <StockSwitch
               inStock={inStock}
