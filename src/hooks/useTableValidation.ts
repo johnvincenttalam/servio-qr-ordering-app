@@ -30,6 +30,12 @@ export function useTableValidation(): UseTableValidationReturn {
     setIsChecking(true);
     setError(null);
 
+    // Clear any previously-stored tableId so the header / cart chrome
+    // doesn't flash the OLD table while we validate the new one. If the
+    // new QR is valid we'll set it from the success branch; if invalid
+    // we want it cleared anyway so the customer sees a fresh state.
+    setTableId(null);
+
     (async () => {
       // RLS allows anonymous SELECT only for non-archived tables, so a
       // missing row covers both "doesn't exist" and "was archived".

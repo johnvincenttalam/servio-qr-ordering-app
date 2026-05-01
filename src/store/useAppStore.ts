@@ -8,7 +8,7 @@ interface AppState {
   cart: CartItem[];
   currentOrderId: string | null;
 
-  setTableId: (id: string) => void;
+  setTableId: (id: string | null) => void;
   addToCart: (
     item: { id: string; name: string; price: number; image: string },
     selections: CartItemSelection[],
