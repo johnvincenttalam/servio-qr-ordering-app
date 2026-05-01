@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
+  Activity,
   LayoutDashboard,
   ListOrdered,
   UtensilsCrossed,
@@ -67,6 +68,12 @@ const PRIMARY_NAV: NavItem[] = [
     to: "/admin/staff",
     icon: Users,
     label: "Staff",
+    allowedRoles: ["admin"],
+  },
+  {
+    to: "/admin/activity",
+    icon: Activity,
+    label: "Activity",
     allowedRoles: ["admin"],
   },
 ];

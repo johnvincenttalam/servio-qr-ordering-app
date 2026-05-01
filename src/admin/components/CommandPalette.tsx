@@ -9,6 +9,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
+  Activity,
   ChefHat,
   ChevronRight,
   CornerDownLeft,
@@ -164,6 +165,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       { kind: "page", id: "banners", label: "Banners", icon: ImageIcon, route: "/admin/banners", allowedRoles: ["admin"] },
       { kind: "page", id: "tables", label: "Tables", icon: QrCode, route: "/admin/tables", allowedRoles: ["admin"] },
       { kind: "page", id: "staff", label: "Staff", icon: Users, route: "/admin/staff", allowedRoles: ["admin"] },
+      { kind: "page", id: "activity", label: "Activity", icon: Activity, route: "/admin/activity", allowedRoles: ["admin"] },
       { kind: "page", id: "kitchen", label: "Kitchen Display", icon: ChefHat, route: "/kitchen", allowedRoles: ["admin", "kitchen"], hint: "Opens in this tab" },
     ];
     return all

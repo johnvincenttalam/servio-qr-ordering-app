@@ -11,6 +11,7 @@ import BannersPage from "./pages/Banners";
 import StaffPage from "./pages/Staff";
 import TablesPage from "./pages/Tables";
 import CategoriesPage from "./pages/Categories";
+import ActivityPage from "./pages/Activity";
 import ProfilePage from "./pages/Profile";
 
 export default function AdminApp() {
@@ -67,6 +68,14 @@ export default function AdminApp() {
           element={
             <AuthGuard allowedRoles={["admin"]}>
               <TablesPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="activity"
+          element={
+            <AuthGuard allowedRoles={["admin"]}>
+              <ActivityPage />
             </AuthGuard>
           }
         />
