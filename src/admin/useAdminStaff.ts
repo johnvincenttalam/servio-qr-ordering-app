@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import {
+  AvatarError,
+  removeStaffAvatar,
+  uploadStaffAvatar,
+} from "@/lib/avatarUpload";
 
 export type StaffRole = "admin" | "kitchen" | "waiter";
 
@@ -10,6 +15,7 @@ export interface StaffMember {
   email: string;
   role: StaffRole;
   displayName: string | null;
+  avatarUrl: string | null;
   createdAt: number;
   lastSignInAt: number | null;
 }
@@ -19,6 +25,7 @@ interface StaffRow {
   email: string;
   role: StaffRole;
   display_name: string | null;
+  avatar_url: string | null;
   created_at: string;
   last_sign_in_at: string | null;
 }
@@ -29,6 +36,7 @@ function rowToMember(row: StaffRow): StaffMember {
     email: row.email,
     role: row.role,
     displayName: row.display_name,
+    avatarUrl: row.avatar_url,
     createdAt: new Date(row.created_at).getTime(),
     lastSignInAt: row.last_sign_in_at
       ? new Date(row.last_sign_in_at).getTime()
@@ -55,6 +63,8 @@ interface UseAdminStaffReturn {
   invite: (params: InviteParams) => Promise<InviteResult>;
   setRole: (userId: string, role: StaffRole) => Promise<void>;
   setDisplayName: (userId: string, name: string | null) => Promise<void>;
+  setAvatar: (userId: string, file: File) => Promise<void>;
+  removeAvatar: (userId: string) => Promise<void>;
   remove: (userId: string) => Promise<void>;
 }
 
@@ -170,6 +180,61 @@ export function useAdminStaff(): UseAdminStaffReturn {
     [refetch]
   );
 
+  const setAvatar = useCallback(
+    async (userId: string, file: File) => {
+      try {
+        const url = await uploadStaffAvatar(userId, file);
+        const { error: updateError } = await supabase
+          .from("staff")
+          .update({ avatar_url: url })
+          .eq("user_id", userId);
+        if (updateError) {
+          console.error("[admin/staff] avatar update failed:", updateError);
+          throw new Error("Couldn't save avatar");
+        }
+        // Optimistic + realtime will both kick in; doing it here avoids the
+        // brief flash of the old URL while we wait for the channel event.
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.userId === userId ? { ...m, avatarUrl: url } : m
+          )
+        );
+      } catch (err) {
+        const message =
+          err instanceof AvatarError || err instanceof Error
+            ? err.message
+            : "Couldn't upload avatar";
+        toast.error(message);
+        throw err instanceof Error ? err : new Error(message);
+      }
+    },
+    []
+  );
+
+  const removeAvatar = useCallback(
+    async (userId: string) => {
+      // Clear the column first so the UI updates instantly even if the
+      // storage delete races; orphaned files are harmless under the cap.
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.userId === userId ? { ...m, avatarUrl: null } : m
+        )
+      );
+      const { error: updateError } = await supabase
+        .from("staff")
+        .update({ avatar_url: null })
+        .eq("user_id", userId);
+      if (updateError) {
+        console.error("[admin/staff] avatar clear failed:", updateError);
+        toast.error("Couldn't remove avatar");
+        await refetch();
+        return;
+      }
+      await removeStaffAvatar(userId);
+    },
+    [refetch]
+  );
+
   const remove = useCallback(
     async (userId: string) => {
       setMembers((prev) => prev.filter((m) => m.userId !== userId));
@@ -200,6 +265,8 @@ export function useAdminStaff(): UseAdminStaffReturn {
     invite,
     setRole,
     setDisplayName,
+    setAvatar,
+    removeAvatar,
     remove,
   };
 }

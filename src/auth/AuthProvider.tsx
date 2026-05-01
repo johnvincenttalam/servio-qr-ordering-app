@@ -15,6 +15,7 @@ interface AuthContextValue {
   user: User | null;
   role: StaffRole | null;
   displayName: string | null;
+  avatarUrl: string | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -27,11 +28,13 @@ const ROLE_QUERY_TIMEOUT_MS = 3000;
 
 const ROLE_CACHE_KEY = "servio.auth.role";
 const NAME_CACHE_KEY = "servio.auth.displayName";
+const AVATAR_CACHE_KEY = "servio.auth.avatarUrl";
 const USERID_CACHE_KEY = "servio.auth.userId";
 
 interface CachedStaff {
   role: StaffRole;
   displayName: string | null;
+  avatarUrl: string | null;
 }
 
 function getCachedStaff(userId: string): CachedStaff | null {
@@ -42,6 +45,7 @@ function getCachedStaff(userId: string): CachedStaff | null {
     return {
       role,
       displayName: sessionStorage.getItem(NAME_CACHE_KEY) || null,
+      avatarUrl: sessionStorage.getItem(AVATAR_CACHE_KEY) || null,
     };
   } catch {
     return null;
@@ -58,10 +62,16 @@ function setCachedStaff(userId: string | null, staff: CachedStaff | null) {
       } else {
         sessionStorage.removeItem(NAME_CACHE_KEY);
       }
+      if (staff.avatarUrl) {
+        sessionStorage.setItem(AVATAR_CACHE_KEY, staff.avatarUrl);
+      } else {
+        sessionStorage.removeItem(AVATAR_CACHE_KEY);
+      }
     } else {
       sessionStorage.removeItem(USERID_CACHE_KEY);
       sessionStorage.removeItem(ROLE_CACHE_KEY);
       sessionStorage.removeItem(NAME_CACHE_KEY);
+      sessionStorage.removeItem(AVATAR_CACHE_KEY);
     }
   } catch {
     // sessionStorage may throw in private browsing — fail silent
@@ -84,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<StaffRole | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -97,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data, error } = await withTimeout(
           supabase
             .from("staff")
-            .select("role, display_name")
+            .select("role, display_name, avatar_url")
             .eq("user_id", userId)
             .maybeSingle(),
           ROLE_QUERY_TIMEOUT_MS,
@@ -111,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return {
           role: data.role as StaffRole,
           displayName: (data.display_name as string | null) ?? null,
+          avatarUrl: (data.avatar_url as string | null) ?? null,
         };
       } catch (err) {
         console.error("[auth] loadStaff failed:", err);
@@ -124,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCachedStaff(userId, fresh);
       setRole(fresh?.role ?? null);
       setDisplayName(fresh?.displayName ?? null);
+      setAvatarUrl(fresh?.avatarUrl ?? null);
     }
 
     async function handleAuthEvent(session: { user: User | null } | null) {
@@ -134,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCachedStaff(null, null);
         setRole(null);
         setDisplayName(null);
+        setAvatarUrl(null);
         if (!cancelled) setIsLoading(false);
         return;
       }
@@ -143,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Instant: trust cache, unblock UI now, refresh in background
         setRole(cached.role);
         setDisplayName(cached.displayName);
+        setAvatarUrl(cached.avatarUrl);
         if (!cancelled) setIsLoading(false);
         backgroundRefreshStaff(nextUser.id);
       } else {
@@ -152,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCachedStaff(nextUser.id, fresh);
         setRole(fresh?.role ?? null);
         setDisplayName(fresh?.displayName ?? null);
+        setAvatarUrl(fresh?.avatarUrl ?? null);
         setIsLoading(false);
       }
     }
@@ -174,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setRole(null);
         setDisplayName(null);
+        setAvatarUrl(null);
         setIsLoading(false);
       }
     }, INIT_TIMEOUT_MS);
@@ -200,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, role, displayName, isLoading, signIn, signOut }}
+      value={{ user, role, displayName, avatarUrl, isLoading, signIn, signOut }}
     >
       {children}
     </AuthContext.Provider>

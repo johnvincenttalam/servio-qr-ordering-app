@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -28,6 +28,7 @@ import {
   type StaffRole,
 } from "../useAdminStaff";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
+import { StaffEditor } from "./StaffEditor";
 
 const ROLE_LABEL: Record<StaffRole, string> = {
   admin: "Admin",
@@ -56,11 +57,20 @@ export default function StaffPage() {
     invite,
     setRole,
     setDisplayName,
+    setAvatar,
+    removeAvatar,
     remove,
   } = useAdminStaff();
   const [now, setNow] = useState(() => Date.now());
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null);
+
+  // Resolve the edit target from the live members list so the modal
+  // reflects realtime updates while it's open.
+  const editTarget = editTargetId
+    ? members.find((m) => m.userId === editTargetId) ?? null
+    : null;
 
   // Tick "last seen" labels every 30s
   useEffect(() => {
@@ -110,7 +120,7 @@ export default function StaffPage() {
           currentUserId={user?.id ?? null}
           now={now}
           onChangeRole={setRole}
-          onChangeName={setDisplayName}
+          onEdit={(m) => setEditTargetId(m.userId)}
           onRemove={(m) => setRemoveTarget(m)}
         />
       )}
@@ -129,6 +139,15 @@ export default function StaffPage() {
           setRemoveTarget(null);
         }}
       />
+
+      <StaffEditor
+        open={editTarget !== null}
+        member={editTarget}
+        onClose={() => setEditTargetId(null)}
+        onSaveName={setDisplayName}
+        onUploadAvatar={setAvatar}
+        onRemoveAvatar={removeAvatar}
+      />
     </div>
   );
 }
@@ -138,14 +157,14 @@ function StaffTable({
   currentUserId,
   now,
   onChangeRole,
-  onChangeName,
+  onEdit,
   onRemove,
 }: {
   members: StaffMember[];
   currentUserId: string | null;
   now: number;
   onChangeRole: (id: string, role: StaffRole) => void;
-  onChangeName: (id: string, name: string | null) => void;
+  onEdit: (m: StaffMember) => void;
   onRemove: (m: StaffMember) => void;
 }) {
   return (
@@ -156,7 +175,7 @@ function StaffTable({
             <th className="px-4 py-2.5">Member</th>
             <th className="px-4 py-2.5 w-[140px]">Role</th>
             <th className="px-4 py-2.5 w-[140px]">Last seen</th>
-            <th className="px-4 py-2.5 w-[60px]" />
+            <th className="px-4 py-2.5 w-[100px]" />
           </tr>
         </thead>
         <tbody>
@@ -167,7 +186,7 @@ function StaffTable({
               isSelf={m.userId === currentUserId}
               now={now}
               onChangeRole={onChangeRole}
-              onChangeName={onChangeName}
+              onEdit={onEdit}
               onRemove={onRemove}
             />
           ))}
@@ -182,39 +201,58 @@ function StaffRow({
   isSelf,
   now,
   onChangeRole,
-  onChangeName,
+  onEdit,
   onRemove,
 }: {
   member: StaffMember;
   isSelf: boolean;
   now: number;
   onChangeRole: (id: string, role: StaffRole) => void;
-  onChangeName: (id: string, name: string | null) => void;
+  onEdit: (m: StaffMember) => void;
   onRemove: (m: StaffMember) => void;
 }) {
   const Icon = ROLE_ICON[member.role];
   const initial =
     (member.displayName?.[0] ?? member.email[0] ?? "?").toUpperCase();
+  const visibleName =
+    member.displayName?.trim() || member.email.split("@")[0];
 
   return (
     <tr className="group border-b border-border/60 transition-colors last:border-b-0 hover:bg-muted/30">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <span
-            className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
-              ROLE_PILL[member.role]
-            )}
-          >
-            {initial}
-          </span>
-          <div className="min-w-0 flex-1">
-            <NameField
-              displayName={member.displayName}
-              fallback={member.email.split("@")[0]}
-              isSelf={isSelf}
-              onSave={(value) => onChangeName(member.userId, value)}
+          {member.avatarUrl ? (
+            <img
+              src={member.avatarUrl}
+              alt={visibleName}
+              className="h-9 w-9 shrink-0 rounded-full border border-border object-cover"
             />
+          ) : (
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                ROLE_PILL[member.role]
+              )}
+            >
+              {initial}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 truncate font-semibold leading-tight">
+              <span
+                className={cn(
+                  "truncate",
+                  !member.displayName && "text-foreground/70"
+                )}
+              >
+                {visibleName}
+              </span>
+              {isSelf && (
+                <span className="rounded-full bg-muted px-1.5 py-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  you
+                </span>
+              )}
+            </p>
             <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
               <Mail className="h-3 w-3 shrink-0" strokeWidth={2.2} />
               {member.email}
@@ -250,115 +288,29 @@ function StaffRow({
           ? formatRelative(member.lastSignInAt, now)
           : "Never"}
       </td>
-      <td className="px-4 py-3 text-right">
-        <button
-          type="button"
-          onClick={() => onRemove(member)}
-          aria-label={`Remove ${member.email}`}
-          title="Remove staff"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
-        >
-          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-        </button>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => onEdit(member)}
+            aria-label={`Edit ${member.email}`}
+            title="Edit staff"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
+          >
+            <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onRemove(member)}
+            aria-label={`Remove ${member.email}`}
+            title="Remove staff"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+          >
+            <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+          </button>
+        </div>
       </td>
     </tr>
-  );
-}
-
-function NameField({
-  displayName,
-  fallback,
-  isSelf,
-  onSave,
-}: {
-  displayName: string | null;
-  fallback: string;
-  isSelf: boolean;
-  onSave: (value: string | null) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(displayName ?? "");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Keep the draft in sync if the row updates while we're not editing
-  // (e.g. another admin renamed this person via realtime).
-  useEffect(() => {
-    if (!editing) setDraft(displayName ?? "");
-  }, [displayName, editing]);
-
-  useEffect(() => {
-    if (editing) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }
-  }, [editing]);
-
-  const commit = () => {
-    const trimmed = draft.trim();
-    const next = trimmed.length > 0 ? trimmed : null;
-    if (next !== (displayName ?? null)) {
-      onSave(next);
-    }
-    setEditing(false);
-  };
-
-  const cancel = () => {
-    setDraft(displayName ?? "");
-    setEditing(false);
-  };
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            commit();
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            cancel();
-          }
-        }}
-        maxLength={60}
-        placeholder={fallback}
-        aria-label="Display name"
-        className="w-full rounded-md border border-foreground/30 bg-background px-1.5 py-0.5 text-sm font-semibold leading-tight focus:border-foreground focus:outline-none"
-      />
-    );
-  }
-
-  const visible = displayName?.trim() || fallback;
-
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      title="Edit name"
-      className="group/name flex items-center gap-1.5 rounded-md text-left -mx-1 px-1 py-0.5 hover:bg-muted/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30"
-    >
-      <span
-        className={cn(
-          "truncate font-semibold leading-tight",
-          !displayName && "text-foreground/70"
-        )}
-      >
-        {visible}
-      </span>
-      {isSelf && (
-        <span className="rounded-full bg-muted px-1.5 py-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-          you
-        </span>
-      )}
-      <Pencil
-        className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/name:opacity-100"
-        strokeWidth={2.2}
-        aria-hidden
-      />
-    </button>
   );
 }
 

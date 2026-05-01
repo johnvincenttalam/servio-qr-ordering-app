@@ -16,7 +16,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
-  const { user, role, displayName, signOut } = useAuth();
+  const { user, role, displayName, avatarUrl, signOut } = useAuth();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -79,9 +79,17 @@ export function Sidebar() {
 
       <div className="border-t border-border p-3">
         <div className="flex items-center gap-2.5 px-2 py-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-sm font-bold text-background">
-            {initial}
-          </span>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={visibleName}
+              className="h-9 w-9 shrink-0 rounded-full border border-border object-cover"
+            />
+          ) : (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-sm font-bold text-background">
+              {initial}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold leading-tight">
               {visibleName}
