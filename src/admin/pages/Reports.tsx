@@ -479,7 +479,11 @@ function ExportRow({
 
 // ──────────────────────────────────────────────────────────────────
 
-const PREVIEW_LIMIT = 25;
+// Most date ranges return well under 100 rows so the preview table
+// shows the full window inline. When the range is wider, the CSV
+// export still contains every row — the preview is a sanity check,
+// not a browser. Truncation is messaged clearly below the heading.
+const PREVIEW_LIMIT = 100;
 
 function OrdersPreview({
   orders,
@@ -526,13 +530,25 @@ function OrdersPreview({
   }
 
   const previewOrders = orders.slice(0, PREVIEW_LIMIT);
+  const truncated = orders.length > PREVIEW_LIMIT;
   return (
     <section className="rounded-3xl border border-border bg-card p-4">
-      <header className="flex items-center justify-between">
-        <h2 className="text-sm font-bold">Orders preview</h2>
-        <span className="text-xs text-muted-foreground">
-          {previewOrders.length} of {orders.length} shown
-        </span>
+      <header className="flex items-baseline justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold">Orders preview</h2>
+          {truncated && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Showing first {PREVIEW_LIMIT} of {orders.length} · all{" "}
+              {orders.length} are included in the CSV.
+            </p>
+          )}
+        </div>
+        {!truncated && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {orders.length}{" "}
+            {orders.length === 1 ? "order" : "orders"}
+          </span>
+        )}
       </header>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
