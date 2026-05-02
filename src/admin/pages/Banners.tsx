@@ -1,12 +1,17 @@
 import { useState } from "react";
 import {
   AlertCircle,
-  Plus,
-  ArrowUp,
+  Activity,
   ArrowDown,
-  Pencil,
+  ArrowUp,
+  EyeOff,
   ImageIcon,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
 } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
 import { AdminEmptyState } from "../components/AdminEmptyState";
 import {
@@ -90,6 +95,7 @@ export default function BannersPage() {
               onEdit={() => setDrawer({ mode: "edit", banner })}
               onMoveUp={() => move(banner.id, "up")}
               onMoveDown={() => move(banner.id, "down")}
+              onDelete={() => remove(banner.id)}
             />
           ))}
         </ul>
@@ -124,6 +130,7 @@ function BannerRow({
   onEdit,
   onMoveUp,
   onMoveDown,
+  onDelete,
 }: {
   banner: AdminBanner;
   isFirst: boolean;
@@ -132,15 +139,19 @@ function BannerRow({
   onEdit: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onDelete: () => void;
 }) {
+  const isHidden = !banner.active;
   return (
     <li
       style={
         { viewTransitionName: `banner-${banner.id}` } as React.CSSProperties
       }
       className={cn(
-        "flex items-center gap-3 rounded-3xl border border-border bg-card p-3 transition-colors hover:border-foreground/20",
-        !banner.active && "opacity-70"
+        "flex items-center gap-3 rounded-3xl border bg-card p-3 transition-colors",
+        isHidden
+          ? "border-border bg-muted/30 opacity-90"
+          : "border-success/40 hover:border-success/60"
       )}
     >
       <button
@@ -157,12 +168,12 @@ function BannerRow({
               loading="lazy"
               className={cn(
                 "h-full w-full object-cover",
-                !banner.active && "grayscale opacity-70"
+                isHidden && "grayscale opacity-70"
               )}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-              <ImageIcon className="h-5 w-5" strokeWidth={1.6} />
+              <ImageIcon aria-hidden="true" className="h-5 w-5" strokeWidth={1.6} />
             </div>
           )}
         </div>
@@ -183,6 +194,8 @@ function BannerRow({
         </div>
       </button>
 
+      <BannerStatePill active={banner.active} />
+
       <div className="flex shrink-0 flex-col items-center gap-0.5">
         <button
           type="button"
@@ -191,7 +204,7 @@ function BannerRow({
           aria-label="Move up"
           className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
         >
-          <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.2} />
+          <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
         </button>
         <button
           type="button"
@@ -200,7 +213,7 @@ function BannerRow({
           aria-label="Move down"
           className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
         >
-          <ArrowDown className="h-3.5 w-3.5" strokeWidth={2.2} />
+          <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
         </button>
       </div>
 
@@ -210,16 +223,70 @@ function BannerRow({
         title={banner.title ?? "banner"}
       />
 
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Edit"
-        aria-label="Edit banner"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
-      >
-        <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
-      </button>
+      <BannerKebab
+        title={banner.title ?? "banner"}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
     </li>
+  );
+}
+
+function BannerStatePill({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+        <Activity aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+        Live
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+      <EyeOff aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+      Hidden
+    </span>
+  );
+}
+
+function BannerKebab({
+  title,
+  onEdit,
+  onDelete,
+}: {
+  title: string;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        aria-label={`More actions for ${title}`}
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
+      >
+        <MoreVertical aria-hidden="true" className="h-4 w-4" strokeWidth={2.2} />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner sideOffset={4} align="end">
+          <Menu.Popup className="z-50 min-w-[160px] origin-[var(--transform-origin)] rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+            <Menu.Item
+              onClick={onEdit}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground outline-none transition-colors data-highlighted:bg-muted"
+            >
+              <Pencil aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Edit
+            </Menu.Item>
+            <Menu.Item
+              onClick={onDelete}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-destructive outline-none transition-colors data-highlighted:bg-destructive/10"
+            >
+              <Trash2 aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Delete
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 

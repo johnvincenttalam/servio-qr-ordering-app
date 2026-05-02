@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   AlertCircle,
+  Activity,
   Archive,
   ArchiveRestore,
   ArrowDown,
   ArrowUp,
   Check,
   Hash,
+  MoreVertical,
   Pencil,
   Plus,
   Type,
 } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
 import {
   Dialog,
   DialogContent,
@@ -197,12 +200,14 @@ function CategoriesList({
             // View transitions on reorder, mirroring the banners flow.
             style={{ viewTransitionName: `category-${cat.id}` }}
             className={cn(
-              "flex items-center gap-3 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-foreground/20",
-              isArchived && "opacity-65"
+              "flex items-center gap-3 rounded-2xl border bg-card p-3 transition-colors",
+              isArchived
+                ? "border-border opacity-65"
+                : "border-border hover:border-foreground/20"
             )}
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
-              <Icon className="h-4 w-4" strokeWidth={2.2} />
+              <Icon aria-hidden="true" className="h-4 w-4" strokeWidth={2.2} />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -210,19 +215,25 @@ function CategoriesList({
                 {cat.label}
               </p>
               <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-                <Hash className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+                <Hash aria-hidden="true" className="h-3 w-3 shrink-0" strokeWidth={2.2} />
                 <span className="font-mono">{cat.id}</span>
-                {isArchived && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>Archived</span>
-                  </>
-                )}
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1">
-              {!isArchived && (
+            <StatePill isArchived={isArchived} />
+
+            <div className="flex shrink-0 items-center gap-0.5">
+              {isArchived ? (
+                <button
+                  type="button"
+                  onClick={() => onRestore(cat.id)}
+                  aria-label={`Restore ${cat.label}`}
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
+                >
+                  <ArchiveRestore aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  Restore
+                </button>
+              ) : (
                 <>
                   <button
                     type="button"
@@ -232,7 +243,7 @@ function CategoriesList({
                     title="Move up"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent"
                   >
-                    <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
                   </button>
                   <button
                     type="button"
@@ -242,45 +253,78 @@ function CategoriesList({
                     title="Move down"
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent"
                   >
-                    <ArrowDown className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onEdit(cat)}
-                    aria-label={`Edit ${cat.label}`}
-                    title="Edit label"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
-                  >
-                    <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onArchive(cat)}
-                    aria-label={`Archive ${cat.label}`}
-                    title="Archive"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
-                  >
-                    <Archive className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  </button>
+                  <CategoryKebab
+                    label={cat.label}
+                    onEdit={() => onEdit(cat)}
+                    onArchive={() => onArchive(cat)}
+                  />
                 </>
-              )}
-              {isArchived && (
-                <button
-                  type="button"
-                  onClick={() => onRestore(cat.id)}
-                  aria-label={`Restore ${cat.label}`}
-                  title="Restore"
-                  className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
-                >
-                  <ArchiveRestore className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  Restore
-                </button>
               )}
             </div>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function StatePill({ isArchived }: { isArchived: boolean }) {
+  if (isArchived) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <Archive aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+        Archived
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-success">
+      <Activity aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+      Active
+    </span>
+  );
+}
+
+function CategoryKebab({
+  label,
+  onEdit,
+  onArchive,
+}: {
+  label: string;
+  onEdit: () => void;
+  onArchive: () => void;
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        aria-label={`More actions for ${label}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
+      >
+        <MoreVertical aria-hidden="true" className="h-4 w-4" strokeWidth={2.2} />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner sideOffset={4} align="end">
+          <Menu.Popup className="z-50 min-w-[160px] origin-[var(--transform-origin)] rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+            <Menu.Item
+              onClick={onEdit}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground outline-none transition-colors data-highlighted:bg-muted"
+            >
+              <Pencil aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Edit
+            </Menu.Item>
+            <Menu.Item
+              onClick={onArchive}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-destructive outline-none transition-colors data-highlighted:bg-destructive/10"
+            >
+              <Archive aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Archive
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 

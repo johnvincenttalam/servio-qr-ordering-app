@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  Activity,
   AlertCircle,
   Archive,
   ArchiveRestore,
-  Clock,
+  Circle,
   LogOut,
+  MoreVertical,
   Pause,
   Pencil,
   Play,
@@ -14,7 +16,9 @@ import {
   QrCode,
   RotateCw,
   UserCheck,
+  type LucideIcon,
 } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
 import {
   Dialog,
   DialogContent,
@@ -538,6 +542,97 @@ function formatOpenAge(start: number, now: number): string {
   return rem === 0 ? `${hours}h` : `${hours}h ${rem}m`;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Card state machine — derived once at the top of TableCard so the
+// header pill, status strip, and border tone all read from the same
+// truth. Priority order matches operator intent: anything that
+// requires staff action (paused / reprint / waiting-to-seat) wins
+// over passive states (live / seated / empty).
+// ─────────────────────────────────────────────────────────────────────
+type CardStateKind =
+  | "archived"
+  | "paused"
+  | "reprint"
+  | "waiting"
+  | "live"
+  | "seated"
+  | "empty";
+
+interface StateTone {
+  card: string;
+  pill: string;
+  icon: LucideIcon;
+  label: string;
+}
+
+const STATE_TONE: Record<CardStateKind, StateTone> = {
+  archived: {
+    card: "border-border opacity-65",
+    pill: "bg-muted text-muted-foreground",
+    icon: Archive,
+    label: "Archived",
+  },
+  paused: {
+    card: "border-warning/50 bg-warning/5",
+    pill: "bg-warning/30 text-foreground",
+    icon: Pause,
+    label: "Paused",
+  },
+  reprint: {
+    card: "border-warning/40 bg-warning/[0.04]",
+    pill: "bg-warning/30 text-foreground",
+    icon: RotateCw,
+    label: "Reprint",
+  },
+  waiting: {
+    card: "border-info/50 bg-info/5",
+    pill: "bg-info text-white",
+    icon: UserCheck,
+    label: "Waiting",
+  },
+  live: {
+    card: "border-success/40 hover:border-success/60",
+    pill: "bg-success text-white",
+    icon: Activity,
+    label: "Live",
+  },
+  seated: {
+    card: "border-foreground/15 hover:border-foreground/25",
+    pill: "bg-foreground text-background",
+    icon: UserCheck,
+    label: "Seated",
+  },
+  empty: {
+    card: "border-border hover:border-foreground/15",
+    pill: "bg-muted text-muted-foreground",
+    icon: Circle,
+    label: "Empty",
+  },
+};
+
+function deriveCardState(
+  table: AdminTable,
+  session: TableSession | null,
+  customerSession: AdminCustomerSession | null,
+  requireSeatedSession: boolean
+): CardStateKind {
+  if (table.archivedAt) return "archived";
+  if (table.pausedAt) return "paused";
+  if (table.qrToken !== null && table.qrToken !== table.printedToken) {
+    return "reprint";
+  }
+  if (
+    requireSeatedSession &&
+    customerSession !== null &&
+    !customerSession.seated
+  ) {
+    return "waiting";
+  }
+  if (session !== null && session.activeCount > 0) return "live";
+  if (customerSession !== null) return "seated";
+  return "empty";
+}
+
 function TableCard({
   table,
   session,
@@ -567,303 +662,423 @@ function TableCard({
   onBump: (sessionId: string) => Promise<void>;
   onShowQr: () => void;
 }) {
-  const isArchived = !!table.archivedAt;
-  const isPaused = !isArchived && !!table.pausedAt;
-  const isLive = !isArchived && session !== null && session.activeCount > 0;
-  const needsSeating =
-    !isArchived &&
-    requireSeatedSession &&
-    customerSession !== null &&
-    !customerSession.seated;
-  const needsReprint =
-    !isArchived &&
-    table.qrToken !== null &&
-    table.qrToken !== table.printedToken;
+  const state = deriveCardState(
+    table,
+    session,
+    customerSession,
+    requireSeatedSession
+  );
+  const tone = STATE_TONE[state];
+  const isArchived = state === "archived";
 
   return (
     <li
       className={cn(
-        "group flex flex-col gap-3 rounded-2xl border bg-card p-3 transition-colors",
-        isArchived
-          ? "border-border opacity-65"
-          : isPaused
-          ? "border-warning/50 bg-warning/5"
-          : needsSeating
-          ? "border-info/50 bg-info/5"
-          : isLive
-          ? "border-success/40 hover:border-success/60"
-          : "border-border hover:border-foreground/20"
+        "flex flex-col overflow-hidden rounded-2xl border bg-card transition-colors",
+        tone.card
       )}
     >
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={onShowQr}
-          disabled={isArchived}
-          title={isArchived ? "Archived — restore to print QR" : "Open QR sticker"}
-          aria-label={`Open QR for ${table.id}`}
-          className={cn(
-            "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-colors",
-            !isArchived &&
-              "hover:bg-foreground/90 active:scale-95 cursor-pointer",
-            isArchived && "cursor-not-allowed bg-muted text-foreground"
-          )}
-        >
-          <span className="text-base font-extrabold tracking-tight">
-            {table.id}
-          </span>
-          {isLive && (
-            <span
-              className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5"
-              aria-hidden
-            >
-              <span className="absolute inset-0 animate-ping rounded-full bg-success opacity-60" />
-              <span className="relative h-2.5 w-2.5 rounded-full bg-success ring-2 ring-card" />
-            </span>
-          )}
-        </button>
+      {/* ─── Zone 1: Header — identity + state pill ─── */}
+      <CardHeader table={table} state={state} tone={tone} onShowQr={onShowQr} />
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-tight">
-            {table.label}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-            {needsReprint ? (
-              <>
-                <RotateCw aria-hidden="true" className="h-3 w-3 shrink-0 text-warning" strokeWidth={2.4} />
-                <span className="font-semibold text-foreground">Reprint needed</span>
-                <span aria-hidden>·</span>
-                <span>token rotated</span>
-              </>
-            ) : isPaused ? (
-              <>
-                <Pause aria-hidden="true" className="h-3 w-3 shrink-0 text-warning" strokeWidth={2.4} />
-                <span className="font-semibold text-foreground">Paused</span>
-                <span aria-hidden>·</span>
-                <span>blocking new orders</span>
-              </>
-            ) : isLive ? (
-              <>
-                <span className="font-semibold text-success">Live</span>
-                <span aria-hidden>·</span>
-                {session!.activeCount}{" "}
-                {session!.activeCount === 1 ? "order" : "orders"}
-              </>
-            ) : (
-              <>
-                <QrCode className="h-3 w-3 shrink-0" strokeWidth={2.2} />
-                {isArchived
-                  ? "Archived"
-                  : table.qrToken
-                  ? "Token live"
-                  : "No token"}
-              </>
-            )}
-          </p>
+      {/* ─── Zone 2: Status strip — single contextual line, always present ─── */}
+      <CardStatus
+        state={state}
+        table={table}
+        customerSession={customerSession}
+        session={session}
+        now={now}
+        onSeat={onSeat}
+        onBump={onBump}
+        onResume={onResume}
+      />
+
+      {/* ─── Zone 3: Stats footer — always rendered, dim when zero ─── */}
+      <CardStats session={session} now={now} />
+
+      {/* ─── Zone 4: Actions ─── */}
+      {isArchived ? (
+        <div className="flex items-center justify-end border-t border-border/60 bg-muted/30 px-3 py-2">
+          <button
+            type="button"
+            onClick={onRestore}
+            className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
+          >
+            <ArchiveRestore aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+            Restore
+          </button>
         </div>
-
-        <div className="flex shrink-0 items-center gap-1.5">
-          {!isArchived ? (
-            <>
-              <button
-                type="button"
-                onClick={onShowQr}
-                aria-label={`QR for ${table.id}`}
-                title="Show QR"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
-              >
-                <QrCode className="h-3.5 w-3.5" strokeWidth={2.2} />
-              </button>
-              {isPaused ? (
-                <button
-                  type="button"
-                  onClick={onResume}
-                  aria-label={`Resume ${table.id}`}
-                  title="Resume — accept orders again"
-                  className="inline-flex h-8 items-center gap-1 rounded-full border border-warning/50 bg-warning/15 px-3 text-xs font-semibold text-foreground transition-colors hover:bg-warning/25 active:scale-95"
-                >
-                  <Play className="h-3.5 w-3.5" strokeWidth={2.4} />
-                  Resume
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onPause}
-                  aria-label={`Pause ${table.id}`}
-                  title="Pause — block new orders without rotating the QR token"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-warning/50 hover:bg-warning/10 hover:text-foreground active:scale-95"
-                >
-                  <Pause className="h-3.5 w-3.5" strokeWidth={2.2} />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onEdit}
-                aria-label={`Edit ${table.id}`}
-                title="Edit label"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
-              >
-                <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
-              </button>
-              <button
-                type="button"
-                onClick={onArchive}
-                aria-label={`Archive ${table.id}`}
-                title="Archive"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
-              >
-                <Archive className="h-3.5 w-3.5" strokeWidth={2.2} />
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={onRestore}
-              aria-label={`Restore ${table.id}`}
-              title="Restore"
-              className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
-            >
-              <ArchiveRestore className="h-3.5 w-3.5" strokeWidth={2.2} />
-              Restore
-            </button>
-          )}
-        </div>
-      </div>
-
-      {customerSession && !isArchived && (
-        <CustomerSessionStrip
-          customerSession={customerSession}
-          requireSeatedSession={requireSeatedSession}
-          now={now}
-          onSeat={() => onSeat(customerSession.id)}
-          onBump={() => onBump(customerSession.id)}
+      ) : (
+        <CardActions
+          table={table}
+          state={state}
+          onShowQr={onShowQr}
+          onPause={onPause}
+          onEdit={onEdit}
+          onArchive={onArchive}
         />
-      )}
-
-      {isLive && session && (
-        <SessionStrip session={session} now={now} />
       )}
     </li>
   );
 }
 
-/**
- * Compact strip surfacing the customer's *visit* (customer_sessions row),
- * distinct from the SessionStrip below which renders order-activity stats.
- * Shows seated state, the elapsed time since scan, and the Seat / Bump
- * actions when relevant. Hidden entirely when there's no active visit.
- */
-function CustomerSessionStrip({
+// ─────────────────────────────────────────────────────────────────────
+// Header — identity chip + label + state pill. The pill is the
+// glance-from-across-the-room signal; the card border tint reinforces it.
+// ─────────────────────────────────────────────────────────────────────
+function CardHeader({
+  table,
+  state,
+  tone,
+  onShowQr,
+}: {
+  table: AdminTable;
+  state: CardStateKind;
+  tone: StateTone;
+  onShowQr: () => void;
+}) {
+  const isArchived = state === "archived";
+  const PillIcon = tone.icon;
+
+  return (
+    <div className="flex items-center gap-3 p-3">
+      <button
+        type="button"
+        onClick={onShowQr}
+        disabled={isArchived}
+        title={isArchived ? "Archived — restore to show QR" : "Open QR sticker"}
+        aria-label={`Open QR for ${table.id}`}
+        className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-extrabold tracking-tight transition-colors",
+          isArchived
+            ? "cursor-not-allowed bg-muted text-foreground"
+            : "bg-foreground text-background hover:bg-foreground/90 active:scale-95 cursor-pointer"
+        )}
+      >
+        {table.id}
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold leading-tight">
+          {table.label}
+        </p>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+          {table.qrToken ? "Token live" : "No token"}
+        </p>
+      </div>
+
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
+          tone.pill
+        )}
+      >
+        <PillIcon aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+        {tone.label}
+      </span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Status strip — one row of contextual detail keyed off state. Always
+// renders so cards stay equal height; for "empty" it shows a faint
+// "no active session" line rather than collapsing.
+// ─────────────────────────────────────────────────────────────────────
+function CardStatus({
+  state,
+  table,
   customerSession,
-  requireSeatedSession,
+  session,
   now,
   onSeat,
   onBump,
+  onResume,
 }: {
-  customerSession: AdminCustomerSession;
-  requireSeatedSession: boolean;
+  state: CardStateKind;
+  table: AdminTable;
+  customerSession: AdminCustomerSession | null;
+  session: TableSession | null;
   now: number;
-  onSeat: () => Promise<void>;
-  onBump: () => Promise<void>;
+  onSeat: (sessionId: string) => Promise<void>;
+  onBump: (sessionId: string) => Promise<void>;
+  onResume: () => void;
 }) {
-  const elapsed = formatOpenAge(customerSession.createdAt, now);
-  const needsSeating = requireSeatedSession && !customerSession.seated;
+  const sessionAge = customerSession
+    ? formatOpenAge(customerSession.createdAt, now)
+    : null;
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-xl px-2.5 py-1.5",
-        needsSeating
-          ? "border border-info/40 bg-info/10"
-          : "bg-muted/40"
+    <div className="flex min-h-10 items-center gap-2 border-t border-border/60 px-3 py-2 text-[11px]">
+      {state === "archived" && (
+        <span className="text-muted-foreground">Hidden from customers</span>
       )}
-    >
-      <span
-        className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-          needsSeating ? "bg-info text-white" : "bg-foreground/10 text-foreground"
-        )}
-        aria-hidden="true"
-      >
-        <UserCheck className="h-3 w-3" strokeWidth={2.4} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold leading-tight">
-          {needsSeating ? "Waiting to be seated" : "Seated"}
-        </p>
-        <p className="text-[10px] text-muted-foreground">
-          scanned {elapsed} ago
-        </p>
-      </div>
-      {needsSeating ? (
-        <button
-          type="button"
-          onClick={onSeat}
-          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-info px-2.5 text-[11px] font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95"
-        >
-          <UserCheck aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
-          Seat
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={onBump}
-          aria-label="End this customer's session"
-          title="End this customer's session"
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
-        >
-          <LogOut aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
-        </button>
+
+      {state === "paused" && (
+        <>
+          <span className="flex-1 truncate">
+            <span className="font-semibold text-foreground">Paused</span>
+            <span className="ml-1 text-muted-foreground">
+              · blocking new orders
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={onResume}
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-warning/20 px-2.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-warning/30 active:scale-95"
+          >
+            <Play aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+            Resume
+          </button>
+        </>
+      )}
+
+      {state === "reprint" && (
+        <>
+          <RotateCw aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-warning" strokeWidth={2.4} />
+          <span className="flex-1 truncate">
+            <span className="font-semibold text-foreground">Reprint needed</span>
+            <span className="ml-1 text-muted-foreground">
+              · token rotated
+            </span>
+          </span>
+        </>
+      )}
+
+      {state === "waiting" && customerSession && (
+        <>
+          <span className="flex-1 truncate">
+            <span className="font-semibold text-foreground">
+              Waiting to be seated
+            </span>
+            {sessionAge && (
+              <span className="ml-1 text-muted-foreground">
+                · scanned {sessionAge} ago
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => onSeat(customerSession.id)}
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-info px-2.5 text-[11px] font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95"
+          >
+            <UserCheck aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+            Seat
+          </button>
+        </>
+      )}
+
+      {state === "live" && (
+        <>
+          <span className="flex-1 truncate">
+            <span className="font-semibold text-foreground">
+              {session?.activeCount ?? 0}{" "}
+              {session?.activeCount === 1 ? "order" : "orders"}
+            </span>
+            {sessionAge && (
+              <span className="ml-1 text-muted-foreground">
+                · scanned {sessionAge} ago
+              </span>
+            )}
+          </span>
+          {customerSession && (
+            <BumpIcon onBump={() => onBump(customerSession.id)} />
+          )}
+        </>
+      )}
+
+      {state === "seated" && customerSession && (
+        <>
+          <span className="flex-1 truncate text-muted-foreground">
+            <span className="font-semibold text-foreground">Seated</span>
+            {sessionAge && (
+              <span className="ml-1">· scanned {sessionAge} ago</span>
+            )}
+          </span>
+          <BumpIcon onBump={() => onBump(customerSession.id)} />
+        </>
+      )}
+
+      {state === "empty" && (
+        <span className="text-muted-foreground/80">
+          {table.qrToken ? "No active session" : "No QR token yet"}
+        </span>
       )}
     </div>
   );
 }
 
-function SessionStrip({
+function BumpIcon({ onBump }: { onBump: () => Promise<void> }) {
+  return (
+    <button
+      type="button"
+      onClick={onBump}
+      aria-label="End this customer's session"
+      title="End session"
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
+    >
+      <LogOut aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Stats footer — Items / Tab / Open. Always renders for layout stability;
+// muted em-dashes when there's nothing to show.
+// ─────────────────────────────────────────────────────────────────────
+function CardStats({
   session,
   now,
 }: {
-  session: TableSession;
+  session: TableSession | null;
   now: number;
 }) {
+  const hasOrders = session !== null && session.activeCount > 0;
   return (
-    <div
-      className="grid grid-cols-3 gap-2 rounded-xl bg-muted/40 p-2.5"
-      aria-label="Live session stats"
-    >
-      <Stat label="Items" value={String(session.itemCount)} />
-      <Stat label="Tab" value={formatPrice(session.total)} />
+    <div className="grid grid-cols-3 gap-2 border-t border-border/60 bg-muted/30 px-3 py-2.5">
+      <Stat
+        label="Items"
+        value={hasOrders ? String(session!.itemCount) : "—"}
+        dimmed={!hasOrders}
+      />
+      <Stat
+        label="Tab"
+        value={hasOrders ? formatPrice(session!.total) : "—"}
+        dimmed={!hasOrders}
+      />
       <Stat
         label="Open"
-        value={formatOpenAge(session.oldestCreatedAt, now)}
-        icon={Clock}
+        value={hasOrders ? formatOpenAge(session!.oldestCreatedAt, now) : "—"}
+        dimmed={!hasOrders}
       />
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Actions — QR + Pause/Resume primary, kebab menu for the rest. Pause
+// flips into a labeled "Resume" pill when the table is paused so the
+// way out is obvious without opening the menu.
+// ─────────────────────────────────────────────────────────────────────
+function CardActions({
+  table,
+  state,
+  onShowQr,
+  onPause,
+  onEdit,
+  onArchive,
+}: {
+  table: AdminTable;
+  state: CardStateKind;
+  onShowQr: () => void;
+  onPause: () => void;
+  onEdit: () => void;
+  onArchive: () => void;
+}) {
+  const isPaused = state === "paused";
+
+  return (
+    <div className="flex items-center gap-1.5 border-t border-border/60 bg-muted/30 px-3 py-2">
+      <button
+        type="button"
+        onClick={onShowQr}
+        aria-label={`Show QR for ${table.id}`}
+        title="Show QR"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+      >
+        <QrCode aria-hidden="true" className="h-4 w-4" strokeWidth={2.2} />
+      </button>
+
+      {/* Pause icon only renders while the table is accepting orders.
+          When paused, the status strip above carries the Resume CTA,
+          so we don't duplicate it here. */}
+      {!isPaused && (
+        <button
+          type="button"
+          onClick={onPause}
+          aria-label={`Pause ${table.id}`}
+          title="Pause — block new orders without rotating the QR token"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-warning/10 hover:text-foreground active:scale-95"
+        >
+          <Pause aria-hidden="true" className="h-4 w-4" strokeWidth={2.2} />
+        </button>
+      )}
+
+      <span className="ml-auto" />
+
+      <CardKebab onEdit={onEdit} onArchive={onArchive} tableId={table.id} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Kebab overflow — base-ui Menu. Holds the lower-frequency actions
+// (Edit label, Archive). Keeps the card row clean while leaving the
+// rare actions one click away.
+// ─────────────────────────────────────────────────────────────────────
+function CardKebab({
+  onEdit,
+  onArchive,
+  tableId,
+}: {
+  onEdit: () => void;
+  onArchive: () => void;
+  tableId: string;
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        aria-label={`More actions for ${tableId}`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
+      >
+        <MoreVertical aria-hidden="true" className="h-4 w-4" strokeWidth={2.2} />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner sideOffset={4} align="end">
+          <Menu.Popup className="z-50 min-w-[160px] origin-[var(--transform-origin)] rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+            <Menu.Item
+              onClick={onEdit}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground outline-none transition-colors data-highlighted:bg-muted"
+            >
+              <Pencil aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Edit label
+            </Menu.Item>
+            <Menu.Item
+              onClick={onArchive}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-destructive outline-none transition-colors data-highlighted:bg-destructive/10"
+            >
+              <Archive aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Archive
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
 function Stat({
   label,
   value,
-  icon: Icon,
+  dimmed = false,
 }: {
   label: string;
   value: string;
-  icon?: typeof Clock;
+  /** Visually mute the value when there's nothing to show (em-dash). */
+  dimmed?: boolean;
 }) {
   return (
     <div className="min-w-0">
       <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <p className="mt-0.5 flex items-center gap-1 truncate text-sm font-bold tabular-nums">
-        {Icon && (
-          <Icon
-            className="h-3 w-3 shrink-0 text-muted-foreground"
-            strokeWidth={2.4}
-          />
+      <p
+        className={cn(
+          "mt-0.5 truncate text-sm font-bold tabular-nums",
+          dimmed && "text-muted-foreground/50"
         )}
-        <span className="truncate">{value}</span>
+      >
+        {value}
       </p>
     </div>
   );
