@@ -1,61 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import {
+  fetchActivity,
+  type AuditAction,
+  type AuditEntityType,
+  type AuditLogEntry,
+} from "@/services/activity";
 
-/**
- * One row of the audit_log table. action mirrors the trigger TG_OP
- * tag; entityType identifies which trigger fired so the UI can icon
- * + filter the feed without having to inspect the JSON payloads.
- */
-export type AuditEntityType =
-  | "menu_item"
-  | "category"
-  | "banner"
-  | "table"
-  | "waiter_call";
-
-export type AuditAction = "INSERT" | "UPDATE" | "DELETE";
-
-export interface AuditLogEntry {
-  id: number;
-  actorId: string | null;
-  actorEmail: string | null;
-  action: AuditAction;
-  entityType: AuditEntityType;
-  entityId: string;
-  summary: string;
-  before: Record<string, unknown> | null;
-  after: Record<string, unknown> | null;
-  createdAt: number;
-}
-
-interface AuditLogRow {
-  id: number;
-  actor_id: string | null;
-  actor_email: string | null;
-  action: AuditAction;
-  entity_type: AuditEntityType;
-  entity_id: string;
-  summary: string;
-  before: Record<string, unknown> | null;
-  after: Record<string, unknown> | null;
-  created_at: string;
-}
-
-function rowToEntry(row: AuditLogRow): AuditLogEntry {
-  return {
-    id: row.id,
-    actorId: row.actor_id,
-    actorEmail: row.actor_email,
-    action: row.action,
-    entityType: row.entity_type,
-    entityId: row.entity_id,
-    summary: row.summary,
-    before: row.before,
-    after: row.after,
-    createdAt: new Date(row.created_at).getTime(),
-  };
-}
+export type { AuditAction, AuditEntityType, AuditLogEntry };
 
 interface UseAdminActivityOptions {
   /** Restrict to a single entity type (null/undefined → all). */
@@ -72,10 +24,9 @@ interface UseAdminActivityReturn {
 }
 
 /**
- * Fetches recent audit_log rows newest-first and subscribes to
- * postgres_changes so newly-inserted entries flow in live. The
- * trigger functions populate the table on every meaningful write,
- * so this hook is purely read-side.
+ * Wraps the activity-log fetch with React state + realtime so the
+ * Activity page picks up new entries live as triggers fire on writes
+ * elsewhere in the admin.
  */
 export function useAdminActivity({
   entityType,
@@ -86,25 +37,13 @@ export function useAdminActivity({
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    let q = supabase
-      .from("audit_log")
-      .select(
-        "id, actor_id, actor_email, action, entity_type, entity_id, summary, before, after, created_at"
-      )
-      .order("created_at", { ascending: false })
-      .limit(limit);
-    if (entityType) {
-      q = q.eq("entity_type", entityType);
-    }
-
-    const { data, error: queryError } = await q;
-    if (queryError) {
-      console.error("[admin/activity] fetch failed:", queryError);
-      setError(queryError.message);
+    const result = await fetchActivity({ entityType, limit });
+    if (result.error) {
+      setError(result.error);
       return;
     }
     setError(null);
-    setEntries(((data ?? []) as AuditLogRow[]).map(rowToEntry));
+    setEntries(result.entries);
   }, [entityType, limit]);
 
   useEffect(() => {

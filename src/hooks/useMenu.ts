@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import {
-  fetchMenu,
-  fetchCategories,
-  fetchBanners,
-} from "@/services/menu-service";
+  fetchActiveBanners,
+  fetchActiveCategories,
+  fetchActiveMenuItems,
+} from "@/services/menu";
 import type { MenuItem, MenuCategory, PromoBanner } from "@/types";
 
 interface UseMenuReturn {
@@ -30,9 +30,9 @@ export function useMenu(): UseMenuReturn {
       try {
         setIsLoading(true);
         const [menuItems, menuCategories, promoBanners] = await Promise.all([
-          fetchMenu(),
-          fetchCategories(),
-          fetchBanners(),
+          fetchActiveMenuItems(),
+          fetchActiveCategories(),
+          fetchActiveBanners(),
         ]);
         if (!cancelled) {
           setItems(menuItems);

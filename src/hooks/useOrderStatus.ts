@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchOrderStatus } from "@/services/order-service";
+import { fetchOrderStatus } from "@/services/orders";
 import { supabase } from "@/lib/supabase";
 import type { Order, OrderStatus } from "@/types";
 

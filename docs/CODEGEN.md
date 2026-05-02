@@ -63,13 +63,19 @@ Conventions:
   - Mutations that compute a value (token rotation) `await` internally and return the value on success, throw on failure.
 - Hooks re-export domain types via `export type { ... }` so existing page-level imports keep working.
 
-Existing services:
-- `@/services/menu` — menu_items + categories (read), `MenuItemDraft`
-- `@/services/tables` — tables, `TableDraft`, `generateQrToken`, `compareTableIds`
-- `@/services/banners` — banners, `BannerDraft`
-- `@/services/categories` — categories, `CategoryDraft`, `compareCategoriesForList`
-- `@/services/staff` — staff RPC + admin-create-staff / admin-reset-password edge calls, `StaffMember`, `CreateStaffParams`, `unpackEdgeError`
-- `@/services/orders` — admin order list + `setOrderStatus`, `sendReadyPush`
+Existing services (one file per domain — both customer and admin functions live together where the underlying table is shared):
+
+- `@/services/menu` — admin `fetchMenuOverview` + customer `fetchActiveMenuItems` / `fetchActiveCategories` / `fetchActiveBanners` / `fetchMenuItem` + admin mutations (`setMenuItemInStock`, `setMenuItemsInStock`, `setMenuItemPrice`, `saveMenuItem`, `createMenuItem`, `archiveMenuItem`), `MenuItemDraft`
+- `@/services/tables` — `fetchTables`, `countActiveOrdersForTable`, mutations (`createTable`, `saveTableLabel`, `archiveTable`, `restoreTable`, `rotateTableToken`), helpers (`generateQrToken`, `compareTableIds`), `TableDraft`
+- `@/services/banners` — `fetchBanners`, `setBannerActive`, `saveBanner`, `createBanner`, `deleteBanner`, `swapBannerPositions`, `BannerDraft`
+- `@/services/categories` — `fetchCategories`, `countItemsInCategory`, mutations (`createCategory`, `saveCategoryDetails`, `archiveCategory`, `restoreCategory`, `swapCategoryPositions`), `compareCategoriesForList`, `CategoryDraft`
+- `@/services/staff` — `fetchStaff` (list_staff RPC), `createStaff` + `resetStaffPassword` (edge functions), `setStaffRole`, `setStaffDisplayName`, `setStaffAvatar`, `clearStaffAvatar`, `deleteStaffMember`, `unpackEdgeError`, `StaffMember`, `CreateStaffParams`
+- `@/services/orders` — admin `fetchAdminOrders` + `setOrderStatus` + `sendReadyPush`; customer `fetchOrderStatus` + `submitOrder`
+- `@/services/dashboard` — `fetchDashboard` (5-query Promise.all + aggregations), `DEFAULT_DASHBOARD_STATS`
+- `@/services/activity` — `fetchActivity` (audit_log read with optional entity-type filter)
+- `@/services/tableSessions` — `fetchTableSessions` (per-table aggregate of active orders)
+- `@/services/profile` — self-service RPCs (`updateMyDisplayName`, `uploadMyAvatar`, `removeMyAvatar`, `changeMyPassword`)
+- `@/services/waiterCalls` — `fetchUnresolvedWaiterCalls`, `createWaiterCall`, `resolveWaiterCall`
 
 ### Optimistic updates
 

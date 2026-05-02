@@ -4,7 +4,7 @@ import { optimisticUpdate } from "@/lib/optimistic";
 import {
   archiveMenuItem,
   createMenuItem,
-  fetchMenu,
+  fetchMenuOverview,
   saveMenuItem,
   setMenuItemInStock,
   setMenuItemsInStock,
@@ -44,7 +44,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    const result = await fetchMenu();
+    const result = await fetchMenuOverview();
     if (result.error) {
       setError(result.error);
       return;

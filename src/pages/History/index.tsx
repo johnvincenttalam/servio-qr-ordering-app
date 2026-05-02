@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/useAppStore";
-import { fetchOrderStatus } from "@/services/order-service";
+import { fetchOrderStatus } from "@/services/orders";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import {
   getOrderHistory,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createWaiterCall } from "@/services/waiterCalls";
 import type { WaiterCallKind } from "@/types";
 
 const COOLDOWN_MS = 60_000;
@@ -78,11 +78,11 @@ export function useWaiterCall(tableId: string | null): UseWaiterCallReturn {
 
       setInflight(kind);
       try {
-        const { error } = await supabase.from("waiter_calls").insert({
-          table_id: callTableId,
+        const { error } = await createWaiterCall({
+          tableId: callTableId,
           kind,
-          order_id: options?.orderId ?? null,
-          note: options?.note ?? null,
+          orderId: options?.orderId,
+          note: options?.note,
         });
 
         if (error) {

@@ -1,7 +1,8 @@
 /**
- * Menu data layer — owns every Supabase query that touches menu_items
- * or categories. Returns mapped domain objects (camelCase) so the
- * hooks consuming this never see snake_case rows.
+ * Menu data layer — owns every Supabase query that touches menu_items,
+ * categories, and the public banners read. Mixes customer-facing
+ * (anon read) and admin-facing functions in one file because the
+ * underlying tables are the same and RLS handles the access split.
  *
  * Mutations return the supabase query builder unawaited so they slot
  * into optimisticUpdate's PromiseLike<DbResult> request shape without
@@ -13,6 +14,7 @@ import type {
   MenuCategory,
   MenuItem,
   MenuOption,
+  PromoBanner,
 } from "@/types";
 
 // ──────────────────────────────────────────────────────────────────
@@ -105,10 +107,10 @@ function generateMenuItemId(category: MenuCategory): string {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Reads
+// Reads — admin
 // ──────────────────────────────────────────────────────────────────
 
-export interface MenuFetchResult {
+export interface MenuOverviewFetchResult {
   items: MenuItem[];
   categories: Category[];
   error: string | null;
@@ -118,9 +120,9 @@ export interface MenuFetchResult {
  * Bundle the menu_items + categories fetch into a single Promise.all.
  * Categories drive the filter chips and item-editor picker so they're
  * pulled alongside items. Returns mapped domain objects + an optional
- * error string the hook can surface.
+ * error string the hook can surface. Admin manager view.
  */
-export async function fetchMenu(): Promise<MenuFetchResult> {
+export async function fetchMenuOverview(): Promise<MenuOverviewFetchResult> {
   const [itemsRes, catsRes] = await Promise.all([
     supabase
       .from("menu_items")
@@ -152,6 +154,89 @@ export async function fetchMenu(): Promise<MenuFetchResult> {
     categories: ((catsRes.data ?? []) as CategoryRow[]).map(rowToCategory),
     error: null,
   };
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Reads — public (customer side, anon read)
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * Customer-side flat list of active items, ordered for display.
+ * Throws on error — the customer hook layer catches and falls back
+ * to an empty list with a banner.
+ */
+export async function fetchActiveMenuItems(): Promise<MenuItem[]> {
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select(
+      "id, name, price, image, category, description, top_pick, in_stock, options, position"
+    )
+    .is("archived_at", null)
+    .order("category", { ascending: true })
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as MenuItemRow[]).map(rowToItem);
+}
+
+/**
+ * Customer-side category list for the chip filter. RLS hides
+ * archived rows from anonymous customers; the explicit filter is
+ * defence in depth.
+ */
+export async function fetchActiveCategories(): Promise<
+  { id: MenuCategory; label: string; icon: string | null }[]
+> {
+  const { data, error } = await supabase
+    .from("categories")
+    .select("id, label, icon")
+    .is("archived_at", null)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as { id: MenuCategory; label: string; icon: string | null }[];
+}
+
+/** Single item lookup; used by fly-to-cart / direct-link flows. */
+export async function fetchMenuItem(
+  id: string
+): Promise<MenuItem | undefined> {
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select(
+      "id, name, price, image, category, description, top_pick, in_stock, options, position"
+    )
+    .eq("id", id)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToItem(data as MenuItemRow) : undefined;
+}
+
+interface BannerRow {
+  id: string;
+  image: string;
+  title: string | null;
+  subtitle: string | null;
+  position: number;
+}
+
+/**
+ * Customer-side banners — only active=true rows surface on the
+ * promo carousel. Maps to PromoBanner (the customer-friendly type
+ * with optional title/subtitle).
+ */
+export async function fetchActiveBanners(): Promise<PromoBanner[]> {
+  const { data, error } = await supabase
+    .from("banners")
+    .select("id, image, title, subtitle, position")
+    .eq("active", true)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as BannerRow[]).map((row) => ({
+    id: row.id,
+    image: row.image,
+    title: row.title ?? undefined,
+    subtitle: row.subtitle ?? undefined,
+  }));
 }
 
 // ──────────────────────────────────────────────────────────────────

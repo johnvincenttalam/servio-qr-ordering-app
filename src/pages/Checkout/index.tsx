@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CartSummary } from "@/components/cart/CartSummary";
 import { OrderSuccessModal } from "@/components/checkout/OrderSuccessModal";
 import { useAppStore } from "@/store/useAppStore";
-import { submitOrder } from "@/services/order-service";
+import { submitOrder } from "@/services/orders";
 import { getLastCustomerName, recordOrder } from "@/lib/orderHistory";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { formatPrice } from "@/utils";
