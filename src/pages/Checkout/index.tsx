@@ -84,8 +84,17 @@ export default function CheckoutPage() {
       });
       setPlacedOrderId(order.id);
       setPlacedAt(order.createdAt);
-    } catch {
-      toast.error("Failed to place order. Please try again.");
+    } catch (err) {
+      // Postgres trigger raises P0001 with a friendly message for the
+      // anti-abuse hard-rejects (paused table, blocklisted device).
+      // Surface that text so customers know to flag down a staff member
+      // instead of staring at a generic "try again".
+      const supabaseErr = err as { code?: string; message?: string } | null;
+      if (supabaseErr?.code === "P0001" && supabaseErr.message) {
+        toast.error(supabaseErr.message);
+      } else {
+        toast.error("Failed to place order. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

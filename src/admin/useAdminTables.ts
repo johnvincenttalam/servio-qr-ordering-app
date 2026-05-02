@@ -7,7 +7,9 @@ import {
   countActiveOrdersForTable,
   createTable,
   fetchTables,
+  pauseTable,
   restoreTable,
+  resumeTable,
   rotateTableToken,
   saveTableLabel,
   type AdminTable,
@@ -30,6 +32,10 @@ interface UseAdminTablesReturn {
    * that carried the previous value.
    */
   rotateToken: (id: string) => Promise<string>;
+  /** Stop the table accepting new orders. In-flight orders are unaffected. */
+  pause: (id: string) => Promise<void>;
+  /** Resume the table. */
+  resume: (id: string) => Promise<void>;
   /** Active orders (pending/preparing/ready) currently on a table. */
   countActiveOrders: (id: string) => Promise<number>;
 }
@@ -124,6 +130,40 @@ export function useAdminTables(): UseAdminTablesReturn {
     [refetch]
   );
 
+  const pause = useCallback(
+    async (id: string) => {
+      const pausedAt = Date.now();
+      return optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, pausedAt } : t))
+          ),
+        request: () => pauseTable(id),
+        refetch,
+        errorMessage: "Couldn't pause table",
+        successMessage: null,
+        logTag: "[admin/tables] pause",
+      });
+    },
+    [refetch]
+  );
+
+  const resume = useCallback(
+    async (id: string) =>
+      optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, pausedAt: null } : t))
+          ),
+        request: () => resumeTable(id),
+        refetch,
+        errorMessage: "Couldn't resume table",
+        successMessage: null,
+        logTag: "[admin/tables] resume",
+      }),
+    [refetch]
+  );
+
   const rotateToken = useCallback(
     async (id: string) => {
       try {
@@ -159,6 +199,8 @@ export function useAdminTables(): UseAdminTablesReturn {
     archive,
     restore,
     rotateToken,
+    pause,
+    resume,
     countActiveOrders,
   };
 }

@@ -4,7 +4,9 @@ import {
   Archive,
   ArchiveRestore,
   Clock,
+  Pause,
   Pencil,
+  Play,
   Plus,
   QrCode,
 } from "lucide-react";
@@ -36,6 +38,8 @@ export default function TablesPage() {
     archive,
     restore,
     rotateToken,
+    pause,
+    resume,
     countActiveOrders,
   } = useAdminTables();
 
@@ -159,6 +163,8 @@ export default function TablesPage() {
           onEdit={(t) => setEditTargetId(t.id)}
           onArchive={(id) => setArchiveTargetId(id)}
           onRestore={restore}
+          onPause={pause}
+          onResume={resume}
           onShowQr={(id) => setQrTargetId(id)}
         />
       )}
@@ -359,6 +365,8 @@ function TablesGrid({
   onEdit,
   onArchive,
   onRestore,
+  onPause,
+  onResume,
   onShowQr,
 }: {
   items: AdminTable[];
@@ -367,6 +375,8 @@ function TablesGrid({
   onEdit: (t: AdminTable) => void;
   onArchive: (id: string) => void;
   onRestore: (id: string) => void;
+  onPause: (id: string) => void;
+  onResume: (id: string) => void;
   onShowQr: (id: string) => void;
 }) {
   return (
@@ -380,6 +390,8 @@ function TablesGrid({
           onEdit={() => onEdit(table)}
           onArchive={() => onArchive(table.id)}
           onRestore={() => onRestore(table.id)}
+          onPause={() => onPause(table.id)}
+          onResume={() => onResume(table.id)}
           onShowQr={() => onShowQr(table.id)}
         />
       ))}
@@ -410,6 +422,8 @@ function TableCard({
   onEdit,
   onArchive,
   onRestore,
+  onPause,
+  onResume,
   onShowQr,
 }: {
   table: AdminTable;
@@ -418,9 +432,12 @@ function TableCard({
   onEdit: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onPause: () => void;
+  onResume: () => void;
   onShowQr: () => void;
 }) {
   const isArchived = !!table.archivedAt;
+  const isPaused = !isArchived && !!table.pausedAt;
   const isLive = !isArchived && session !== null && session.activeCount > 0;
 
   return (
@@ -429,6 +446,8 @@ function TableCard({
         "group flex flex-col gap-3 rounded-2xl border bg-card p-3 transition-colors",
         isArchived
           ? "border-border opacity-65"
+          : isPaused
+          ? "border-warning/50 bg-warning/5"
           : isLive
           ? "border-success/40 hover:border-success/60"
           : "border-border hover:border-foreground/20"
@@ -467,7 +486,14 @@ function TableCard({
             {table.label}
           </p>
           <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-            {isLive ? (
+            {isPaused ? (
+              <>
+                <Pause className="h-3 w-3 shrink-0 text-warning" strokeWidth={2.4} />
+                <span className="font-semibold text-foreground">Paused</span>
+                <span aria-hidden>·</span>
+                <span>blocking new orders</span>
+              </>
+            ) : isLive ? (
               <>
                 <span className="font-semibold text-success">Live</span>
                 <span aria-hidden>·</span>
@@ -499,6 +525,28 @@ function TableCard({
               >
                 <QrCode className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
+              {isPaused ? (
+                <button
+                  type="button"
+                  onClick={onResume}
+                  aria-label={`Resume ${table.id}`}
+                  title="Resume — accept orders again"
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-warning/50 bg-warning/15 px-3 text-xs font-semibold text-foreground transition-colors hover:bg-warning/25 active:scale-95"
+                >
+                  <Play className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  Resume
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onPause}
+                  aria-label={`Pause ${table.id}`}
+                  title="Pause — block new orders without rotating the QR token"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-warning/50 hover:bg-warning/10 hover:text-foreground active:scale-95"
+                >
+                  <Pause className="h-3.5 w-3.5" strokeWidth={2.2} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onEdit}

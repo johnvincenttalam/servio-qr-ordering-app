@@ -10,6 +10,11 @@ export interface AdminTable {
   label: string;
   qrToken: string | null;
   archivedAt: number | null;
+  /**
+   * Anti-abuse: when set, check_order_abuse() rejects new orders on
+   * this table. Existing in-flight orders are unaffected.
+   */
+  pausedAt: number | null;
 }
 
 export interface TableDraft {
@@ -22,6 +27,7 @@ interface TableRow {
   label: string;
   qr_token: string | null;
   archived_at: string | null;
+  paused_at: string | null;
 }
 
 function rowToTable(row: TableRow): AdminTable {
@@ -30,6 +36,7 @@ function rowToTable(row: TableRow): AdminTable {
     label: row.label,
     qrToken: row.qr_token,
     archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
+    pausedAt: row.paused_at ? new Date(row.paused_at).getTime() : null,
   };
 }
 
@@ -66,7 +73,7 @@ export interface TablesFetchResult {
 export async function fetchTables(): Promise<TablesFetchResult> {
   const { data, error } = await supabase
     .from("tables")
-    .select("id, label, qr_token, archived_at");
+    .select("id, label, qr_token, archived_at, paused_at");
 
   if (error) {
     console.error("[services/tables] fetch failed:", error);
@@ -128,6 +135,19 @@ export function archiveTable(id: string) {
 
 export function restoreTable(id: string) {
   return supabase.from("tables").update({ archived_at: null }).eq("id", id);
+}
+
+/** Stop the table accepting new orders. Existing in-flight orders are unaffected. */
+export function pauseTable(id: string) {
+  return supabase
+    .from("tables")
+    .update({ paused_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
+/** Resume the table. Reverse of pauseTable. */
+export function resumeTable(id: string) {
+  return supabase.from("tables").update({ paused_at: null }).eq("id", id);
 }
 
 /**
