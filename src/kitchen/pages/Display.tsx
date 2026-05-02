@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ChefHat,
-  Utensils,
   ArrowLeft,
   RefreshCw,
   AlertCircle,
@@ -13,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/common/BrandMark";
 import { WaiterCallsBanner } from "@/components/common/WaiterCallsBanner";
 import { playChime, primeChime } from "@/lib/chime";
 import { useKitchenOrders, type KitchenOrder } from "../useKitchenOrders";
@@ -111,9 +111,7 @@ export default function DisplayPage() {
           </Link>
 
           <div className="flex items-center justify-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-foreground text-background">
-              <Utensils className="h-4 w-4" strokeWidth={2.5} />
-            </span>
+            <BrandMark className="h-10 w-10" />
             <h1 className="text-2xl font-extrabold leading-none tracking-tight">
               Kitchen
             </h1>

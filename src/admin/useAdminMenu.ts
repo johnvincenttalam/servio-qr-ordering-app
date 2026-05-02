@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import { optimisticUpdate } from "@/lib/optimistic";
 import { formatPrice } from "@/utils";
 import type { Category, MenuCategory, MenuItem, MenuOption } from "@/types";
 
@@ -140,50 +140,37 @@ export function useAdminMenu(): UseAdminMenuReturn {
 
   const setInStock = useCallback(
     async (id: string, inStock: boolean) => {
-      const prevItem = items.find((it) => it.id === id);
-
-      setItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, inStock } : item))
-      );
-
-      const { error: updateError } = await supabase
-        .from("menu_items")
-        .update({ in_stock: inStock })
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/menu] toggle failed:", updateError);
-        toast.error("Couldn't update stock — try again");
-        await refetch();
-        return;
-      }
-
-      const name = prevItem?.name ?? "Item";
-      toast(
-        inStock ? `${name} back in stock` : `${name} marked sold out`,
-        {
-          action: {
-            label: "Undo",
-            onClick: async () => {
-              setItems((prev) =>
-                prev.map((item) =>
-                  item.id === id ? { ...item, inStock: !inStock } : item
-                )
-              );
-              const { error: undoError } = await supabase
-                .from("menu_items")
-                .update({ in_stock: !inStock })
-                .eq("id", id);
-              if (undoError) {
-                console.error("[admin/menu] undo failed:", undoError);
-                toast.error("Couldn't undo — try again");
-                await refetch();
-              }
-            },
-          },
-          duration: 4000,
-        }
-      );
+      const name = items.find((it) => it.id === id)?.name ?? "Item";
+      await optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === id ? { ...item, inStock } : item
+            )
+          ),
+        undo: () =>
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === id ? { ...item, inStock: !inStock } : item
+            )
+          ),
+        request: () =>
+          supabase
+            .from("menu_items")
+            .update({ in_stock: inStock })
+            .eq("id", id),
+        undoRequest: () =>
+          supabase
+            .from("menu_items")
+            .update({ in_stock: !inStock })
+            .eq("id", id),
+        refetch,
+        errorMessage: "Couldn't update stock — try again",
+        successMessage: inStock
+          ? `${name} back in stock`
+          : `${name} marked sold out`,
+        logTag: "[admin/menu] toggle",
+      });
     },
     [items, refetch]
   );
@@ -201,70 +188,58 @@ export function useAdminMenu(): UseAdminMenuReturn {
           .filter((it) => ids.includes(it.id))
           .map((it) => [it.id, it.inStock !== false] as const)
       );
-
       const idSet = new Set(ids);
-      setItems((prev) =>
-        prev.map((item) =>
-          idSet.has(item.id) ? { ...item, inStock } : item
-        )
-      );
-
-      const { error: updateError } = await supabase
-        .from("menu_items")
-        .update({ in_stock: inStock })
-        .in("id", ids);
-
-      if (updateError) {
-        console.error("[admin/menu] bulk toggle failed:", updateError);
-        toast.error("Couldn't update items — try again");
-        await refetch();
-        return;
-      }
-
       const noun = ids.length === 1 ? "item" : "items";
       const verb = inStock ? "back in stock" : "marked sold out";
-      toast(`${ids.length} ${noun} ${verb}`, {
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            // Restore each id to its individual prior state.
-            setItems((prev) =>
-              prev.map((item) =>
-                prevById.has(item.id)
-                  ? { ...item, inStock: prevById.get(item.id) ?? true }
-                  : item
-              )
-            );
-            // Bucket ids by their prior in-stock state so each direction
-            // is a single round trip rather than N writes.
-            const toIn: string[] = [];
-            const toOut: string[] = [];
-            for (const [id, wasInStock] of prevById) {
-              (wasInStock ? toIn : toOut).push(id);
-            }
-            const errors = await Promise.all([
-              toIn.length > 0
-                ? supabase
-                    .from("menu_items")
-                    .update({ in_stock: true })
-                    .in("id", toIn)
-                : Promise.resolve({ error: null }),
-              toOut.length > 0
-                ? supabase
-                    .from("menu_items")
-                    .update({ in_stock: false })
-                    .in("id", toOut)
-                : Promise.resolve({ error: null }),
-            ]);
-            const failed = errors.find((r) => r.error);
-            if (failed?.error) {
-              console.error("[admin/menu] bulk undo failed:", failed.error);
-              toast.error("Couldn't undo — try again");
-              await refetch();
-            }
-          },
+
+      await optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((item) =>
+              idSet.has(item.id) ? { ...item, inStock } : item
+            )
+          ),
+        undo: () =>
+          setItems((prev) =>
+            prev.map((item) =>
+              prevById.has(item.id)
+                ? { ...item, inStock: prevById.get(item.id) ?? true }
+                : item
+            )
+          ),
+        request: () =>
+          supabase
+            .from("menu_items")
+            .update({ in_stock: inStock })
+            .in("id", ids),
+        undoRequest: async () => {
+          // Bucket ids by their prior in-stock state so each direction
+          // is a single round trip rather than N writes.
+          const toIn: string[] = [];
+          const toOut: string[] = [];
+          for (const [id, wasInStock] of prevById) {
+            (wasInStock ? toIn : toOut).push(id);
+          }
+          const results = await Promise.all([
+            toIn.length > 0
+              ? supabase
+                  .from("menu_items")
+                  .update({ in_stock: true })
+                  .in("id", toIn)
+              : Promise.resolve({ error: null }),
+            toOut.length > 0
+              ? supabase
+                  .from("menu_items")
+                  .update({ in_stock: false })
+                  .in("id", toOut)
+              : Promise.resolve({ error: null }),
+          ]);
+          return { error: results.find((r) => r.error)?.error ?? null };
         },
-        duration: 4000,
+        refetch,
+        errorMessage: "Couldn't update items — try again",
+        successMessage: `${ids.length} ${noun} ${verb}`,
+        logTag: "[admin/menu] bulk toggle",
       });
     },
     [items, refetch]
@@ -274,55 +249,48 @@ export function useAdminMenu(): UseAdminMenuReturn {
     async (id: string, price: number) => {
       const prevItem = items.find((it) => it.id === id);
       const prevPrice = prevItem?.price;
+      const name = prevItem?.name ?? "Item";
 
-      // Optimistic — paint the new price immediately so the click feels
-      // instant. Reverts on any failure path (network, RLS, etc.).
-      setItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, price } : item))
-      );
+      // No prior price (item not found locally) or it's a no-op
+      // change → suppress the toast so the operator isn't told about
+      // a non-event. The DB write still runs in case local state had
+      // drifted from the source of truth.
+      const successMessage =
+        prevPrice !== undefined && prevPrice !== price
+          ? `${name} price ${formatPrice(prevPrice)} → ${formatPrice(price)}`
+          : null;
 
-      const { error: updateError } = await supabase
-        .from("menu_items")
-        .update({ price })
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/menu] price update failed:", updateError);
-        toast.error("Couldn't update price — try again");
-        await refetch();
-        return;
-      }
-
-      // Successful save: surface an undo toast just like setInStock so a
-      // mis-typed price is one click to revert.
-      if (prevPrice !== undefined && prevPrice !== price) {
-        const name = prevItem?.name ?? "Item";
-        toast(
-          `${name} price ${formatPrice(prevPrice)} → ${formatPrice(price)}`,
-          {
-            action: {
-              label: "Undo",
-              onClick: async () => {
+      await optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === id ? { ...item, price } : item
+            )
+          ),
+        undo:
+          prevPrice !== undefined
+            ? () =>
                 setItems((prev) =>
                   prev.map((item) =>
                     item.id === id ? { ...item, price: prevPrice } : item
                   )
-                );
-                const { error: undoError } = await supabase
+                )
+            : undefined,
+        request: () =>
+          supabase.from("menu_items").update({ price }).eq("id", id),
+        undoRequest:
+          prevPrice !== undefined
+            ? () =>
+                supabase
                   .from("menu_items")
                   .update({ price: prevPrice })
-                  .eq("id", id);
-                if (undoError) {
-                  console.error("[admin/menu] price undo failed:", undoError);
-                  toast.error("Couldn't undo — try again");
-                  await refetch();
-                }
-              },
-            },
-            duration: 4000,
-          }
-        );
-      }
+                  .eq("id", id)
+            : undefined,
+        refetch,
+        errorMessage: "Couldn't update price — try again",
+        successMessage,
+        logTag: "[admin/menu] price update",
+      });
     },
     [items, refetch]
   );

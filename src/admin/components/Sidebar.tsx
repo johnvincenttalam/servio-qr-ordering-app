@@ -12,7 +12,6 @@ import {
   ChefHat,
   LogOut,
   Settings,
-  Utensils,
   ExternalLink,
   X,
   type LucideIcon,
@@ -21,6 +20,7 @@ import type { StaffRole } from "@/auth/AuthProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
+import { BrandMark } from "@/components/common/BrandMark";
 import { useAdminOrderPulse } from "../useAdminOrderPulse";
 
 interface NavItem {
@@ -166,9 +166,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             onClick={onClose}
             className="flex items-center gap-2.5"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-foreground text-background">
-              <Utensils className="h-4 w-4" strokeWidth={2.5} />
-            </span>
+            <BrandMark className="h-9 w-9" />
             <div className="min-w-0">
               <p className="truncate text-sm font-bold leading-none tracking-tight">
                 {settings.name}

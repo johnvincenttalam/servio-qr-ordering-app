@@ -1,5 +1,5 @@
-import { Utensils } from "lucide-react";
 import type { ReactNode } from "react";
+import { BrandMark } from "@/components/common/BrandMark";
 
 interface AuthShellProps {
   title: string;
@@ -34,9 +34,7 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
               aria-hidden
               className="absolute inset-0 -z-10 rounded-2xl bg-info/35 blur-xl"
             />
-            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground text-background shadow-lg shadow-info/20">
-              <Utensils className="h-6 w-6" strokeWidth={2.4} />
-            </span>
+            <BrandMark className="h-14 w-14 shadow-lg shadow-info/20" />
           </div>
           <h1 className="mt-4 text-2xl font-bold tracking-tight">{title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>

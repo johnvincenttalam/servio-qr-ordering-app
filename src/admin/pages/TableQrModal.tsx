@@ -4,8 +4,8 @@ import {
   Download,
   Printer,
   RotateCw,
-  Utensils,
 } from "lucide-react";
+import { BrandMark } from "@/components/common/BrandMark";
 import {
   Dialog,
   DialogContent,
@@ -128,14 +128,15 @@ export function TableQrModal({
     }
     const safeLabel = (table.label || "").replace(/</g, "&lt;");
     const safeBrand = brandName.replace(/</g, "&lt;");
-    // Inline lucide-style "Utensils" SVG path so the printed sticker
-    // doesn't depend on a font icon. currentColor flows from the .brand
-    // wrapper so the icon stays in sync with text colour at print time.
+    // Inline the SERVIO brand mark paths so the printed sticker
+    // doesn't depend on a font icon. currentColor flows from the
+    // .brand wrapper so the icon stays in sync with text colour at
+    // print time. Paths match /public/favicon.svg verbatim.
     const brandIcon = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
-        <path d="M7 2v20" />
-        <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+      <svg viewBox="0 0 568 568" fill="none" stroke="currentColor" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M138.5 122.334V235.501C138.5 253.284 153.05 267.834 170.833 267.834H235.5C244.075 267.834 252.299 264.427 258.363 258.364C264.427 252.3 267.833 244.076 267.833 235.501V122.334" />
+        <path d="M203.395 122.105V445.894" />
+        <path d="M429.501 332.501V122.334C408.063 122.334 387.503 130.85 372.344 146.01C357.184 161.169 348.668 181.729 348.668 203.167V300.167C348.668 317.951 363.218 332.501 381.001 332.501H429.501ZM429.501 332.501V445.667" />
       </svg>`;
     win.document.write(`<!doctype html>
 <html>
@@ -301,9 +302,10 @@ export function TableQrModal({
             */}
             <div className="flex w-[240px] flex-col items-center justify-between rounded-2xl border border-border bg-card px-4 py-4 shadow-md shadow-black/5 aspect-[8/11]">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-2 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-background">
-                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-[4px] bg-background text-foreground">
-                  <Utensils className="h-2 w-2" strokeWidth={2.8} />
-                </span>
+                <BrandMark
+                  variant="ghost"
+                  className="h-3.5 w-3.5 bg-background text-foreground"
+                />
                 <span className="truncate">{brandName}</span>
               </span>
 

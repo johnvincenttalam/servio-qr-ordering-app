@@ -1,6 +1,7 @@
-import { QrCode, AlertCircle, Utensils } from "lucide-react";
+import { QrCode, AlertCircle } from "lucide-react";
 import { useTableValidation } from "@/hooks/useTableValidation";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
+import { BrandMark } from "@/components/common/BrandMark";
 
 export default function HomePage() {
   const { error } = useTableValidation();
@@ -28,9 +29,7 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center gap-5 px-4 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-foreground">
-        <Utensils className="h-7 w-7 text-background" strokeWidth={2.2} />
-      </div>
+      <BrandMark className="h-16 w-16" />
       <div className="space-y-1.5">
         <h1 className="text-2xl font-bold tracking-tight">{settings.name}</h1>
         <p className="text-sm text-muted-foreground">Setting up your table…</p>

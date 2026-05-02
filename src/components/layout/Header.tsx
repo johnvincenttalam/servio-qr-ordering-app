@@ -4,11 +4,11 @@ import {
   Bell,
   History as HistoryIcon,
   ShoppingCart,
-  Utensils,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { getOrderHistory } from "@/lib/orderHistory";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
+import { BrandMark } from "@/components/common/BrandMark";
 import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
 
 export function Header() {
@@ -35,9 +35,7 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-border bg-card text-foreground">
       <div className="mx-auto flex max-w-md items-center justify-between gap-2 px-4 py-3 sm:max-w-2xl lg:max-w-3xl">
         <Link to="/menu" className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-foreground text-background">
-            <Utensils className="h-4 w-4" strokeWidth={2.5} />
-          </span>
+          <BrandMark className="h-10 w-10" />
           <div className="min-w-0">
             <p className="truncate text-lg font-extrabold leading-none tracking-tight">
               {settings.name}

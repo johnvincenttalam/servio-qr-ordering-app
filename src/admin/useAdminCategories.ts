@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import { optimisticUpdate } from "@/lib/optimistic";
 import type { Category } from "@/types";
 
 interface CategoryRow {
@@ -132,21 +133,23 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
     ) => {
       const trimmed = fields.label.trim();
       const icon = fields.icon ?? null;
-      // Optimistic
-      setItems((prev) =>
-        prev.map((c) =>
-          c.id === id ? { ...c, label: trimmed, icon } : c
-        )
-      );
-      const { error: updateError } = await supabase
-        .from("categories")
-        .update({ label: trimmed, icon })
-        .eq("id", id);
-      if (updateError) {
-        console.error("[admin/categories] save failed:", updateError);
-        toast.error("Couldn't save changes");
-        await refetch();
-      }
+      return optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((c) =>
+              c.id === id ? { ...c, label: trimmed, icon } : c
+            )
+          ),
+        request: () =>
+          supabase
+            .from("categories")
+            .update({ label: trimmed, icon })
+            .eq("id", id),
+        refetch,
+        errorMessage: "Couldn't save changes",
+        successMessage: null,
+        logTag: "[admin/categories] save",
+      });
     },
     [refetch]
   );
@@ -154,39 +157,43 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
   const archive = useCallback(
     async (id: string) => {
       const at = new Date().toISOString();
-      setItems((prev) =>
-        prev.map((c) =>
-          c.id === id ? { ...c, archivedAt: new Date(at).getTime() } : c
-        )
-      );
-      const { error: updateError } = await supabase
-        .from("categories")
-        .update({ archived_at: at })
-        .eq("id", id);
-      if (updateError) {
-        console.error("[admin/categories] archive failed:", updateError);
-        toast.error("Couldn't archive");
-        await refetch();
-      }
+      const archivedAt = new Date(at).getTime();
+      return optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, archivedAt } : c))
+          ),
+        request: () =>
+          supabase
+            .from("categories")
+            .update({ archived_at: at })
+            .eq("id", id),
+        refetch,
+        errorMessage: "Couldn't archive",
+        successMessage: null,
+        logTag: "[admin/categories] archive",
+      });
     },
     [refetch]
   );
 
   const restore = useCallback(
-    async (id: string) => {
-      setItems((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, archivedAt: null } : c))
-      );
-      const { error: updateError } = await supabase
-        .from("categories")
-        .update({ archived_at: null })
-        .eq("id", id);
-      if (updateError) {
-        console.error("[admin/categories] restore failed:", updateError);
-        toast.error("Couldn't restore");
-        await refetch();
-      }
-    },
+    async (id: string) =>
+      optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, archivedAt: null } : c))
+          ),
+        request: () =>
+          supabase
+            .from("categories")
+            .update({ archived_at: null })
+            .eq("id", id),
+        refetch,
+        errorMessage: "Couldn't restore",
+        successMessage: null,
+        logTag: "[admin/categories] restore",
+      }),
     [refetch]
   );
 

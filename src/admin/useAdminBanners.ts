@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { optimisticUpdate } from "@/lib/optimistic";
 
 export interface AdminBanner {
   id: string;
@@ -78,22 +79,19 @@ export function useAdminBanners(): UseAdminBannersReturn {
   }, [refetch]);
 
   const setActive = useCallback(
-    async (id: string, active: boolean) => {
-      setItems((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, active } : b))
-      );
-
-      const { error: updateError } = await supabase
-        .from("banners")
-        .update({ active })
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/banners] toggle active failed:", updateError);
-        toast.error("Couldn't update banner");
-        await refetch();
-      }
-    },
+    async (id: string, active: boolean) =>
+      optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((b) => (b.id === id ? { ...b, active } : b))
+          ),
+        request: () =>
+          supabase.from("banners").update({ active }).eq("id", id),
+        refetch,
+        errorMessage: "Couldn't update banner",
+        successMessage: null,
+        logTag: "[admin/banners] toggle active",
+      }),
     [refetch]
   );
 

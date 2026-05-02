@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import { optimisticUpdate } from "@/lib/optimistic";
 
 export interface AdminTable {
   id: string;
@@ -124,67 +125,62 @@ export function useAdminTables(): UseAdminTablesReturn {
   );
 
   const saveLabel = useCallback(
-    async (id: string, label: string) => {
-      // Optimistic
-      setItems((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, label } : t))
-      );
-
-      const { error: updateError } = await supabase
-        .from("tables")
-        .update({ label })
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/tables] save failed:", updateError);
-        toast.error("Couldn't save label");
-        await refetch();
-      }
-    },
+    async (id: string, label: string) =>
+      optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, label } : t))
+          ),
+        request: () =>
+          supabase.from("tables").update({ label }).eq("id", id),
+        refetch,
+        errorMessage: "Couldn't save label",
+        successMessage: null,
+        logTag: "[admin/tables] save label",
+      }),
     [refetch]
   );
 
   const archive = useCallback(
     async (id: string) => {
-      // Optimistic
       const at = new Date().toISOString();
-      setItems((prev) =>
-        prev.map((t) =>
-          t.id === id ? { ...t, archivedAt: new Date(at).getTime() } : t
-        )
-      );
-
-      const { error: updateError } = await supabase
-        .from("tables")
-        .update({ archived_at: at })
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/tables] archive failed:", updateError);
-        toast.error("Couldn't archive");
-        await refetch();
-      }
+      const archivedAt = new Date(at).getTime();
+      return optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, archivedAt } : t))
+          ),
+        request: () =>
+          supabase
+            .from("tables")
+            .update({ archived_at: at })
+            .eq("id", id),
+        refetch,
+        errorMessage: "Couldn't archive",
+        successMessage: null,
+        logTag: "[admin/tables] archive",
+      });
     },
     [refetch]
   );
 
   const restore = useCallback(
-    async (id: string) => {
-      setItems((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, archivedAt: null } : t))
-      );
-
-      const { error: updateError } = await supabase
-        .from("tables")
-        .update({ archived_at: null })
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/tables] restore failed:", updateError);
-        toast.error("Couldn't restore");
-        await refetch();
-      }
-    },
+    async (id: string) =>
+      optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, archivedAt: null } : t))
+          ),
+        request: () =>
+          supabase
+            .from("tables")
+            .update({ archived_at: null })
+            .eq("id", id),
+        refetch,
+        errorMessage: "Couldn't restore",
+        successMessage: null,
+        logTag: "[admin/tables] restore",
+      }),
     [refetch]
   );
 

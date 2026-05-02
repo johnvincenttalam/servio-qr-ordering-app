@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Menu, Search, Utensils } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
+import { BrandMark } from "@/components/common/BrandMark";
 import { Sidebar } from "./components/Sidebar";
 import { CommandPalette } from "./components/CommandPalette";
 import { AdminOrderPulseProvider } from "./useAdminOrderPulse";
@@ -55,9 +56,7 @@ export function AdminLayout() {
             <Menu className="h-4 w-4" strokeWidth={2.4} />
           </button>
           <Link to="/admin" className="flex flex-1 items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-foreground text-background">
-              <Utensils className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </span>
+            <BrandMark className="h-8 w-8" />
             <span className="truncate text-sm font-bold tracking-tight">
               {settings.name} Admin
             </span>
