@@ -8,6 +8,7 @@ import {
   type AdminOrder,
   type AdminOrderStatus,
 } from "../useAdminOrders";
+import { HeldOrdersBanner } from "../components/HeldOrdersBanner";
 import {
   ADMIN_STATUS_ACTIVE,
   ADMIN_STATUS_ICON,
@@ -42,7 +43,16 @@ function rangeStartTimestamp(range: DateRange, now: number): number {
 }
 
 export default function OrdersPage() {
-  const { orders, isLoading, error, setStatus } = useAdminOrders();
+  const {
+    orders,
+    heldOrders,
+    isLoading,
+    error,
+    setStatus,
+    approveHeld,
+    rejectHeld,
+    blockDeviceById,
+  } = useAdminOrders();
   const [filter, setFilter] = useState<StatusFilter>("active");
   const [dateRange, setDateRange] = useState<DateRange>("today");
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,6 +184,13 @@ export default function OrdersPage() {
         </div>
       )}
 
+      <HeldOrdersBanner
+        orders={heldOrders}
+        onApprove={approveHeld}
+        onReject={rejectHeld}
+        onBlockDevice={blockDeviceById}
+      />
+
       <WaiterCallsBanner emphasize="bill" />
 
       <SearchBar
@@ -227,6 +244,8 @@ export default function OrdersPage() {
         order={selected}
         onClose={() => setSelectedId(null)}
         onSetStatus={setStatus}
+        onApproveHeld={approveHeld}
+        onBlockDevice={blockDeviceById}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import { CartSummary } from "@/components/cart/CartSummary";
 import { OrderSuccessModal } from "@/components/checkout/OrderSuccessModal";
 import { useAppStore } from "@/store/useAppStore";
 import { submitOrder } from "@/services/orders";
+import { getDeviceId } from "@/lib/deviceId";
 import { getLastCustomerName, recordOrder } from "@/lib/orderHistory";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { formatPrice } from "@/utils";
@@ -26,6 +27,7 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
+  const [placedAt, setPlacedAt] = useState<number | null>(null);
 
   const nameRequired = settings.requireCustomerName;
   const closed = !settings.openForOrders;
@@ -68,6 +70,7 @@ export default function CheckoutPage() {
         total,
         customerName: customerName.trim() || undefined,
         notes: notes.trim() || undefined,
+        deviceId: getDeviceId(),
       });
       // Record on this device so the customer can see / reorder it
       // later from /history. Failures are swallowed inside the helper —
@@ -80,6 +83,7 @@ export default function CheckoutPage() {
         tableId: order.tableId,
       });
       setPlacedOrderId(order.id);
+      setPlacedAt(order.createdAt);
     } catch {
       toast.error("Failed to place order. Please try again.");
     } finally {
@@ -93,6 +97,16 @@ export default function CheckoutPage() {
       clearCart();
     }
     navigate("/order-status", { replace: true });
+  };
+
+  // Customer cancelled inside the 30s undo window. The order row is
+  // already flipped to 'cancelled' server-side; just clear the cart and
+  // bounce them back to the menu so they can re-pick or leave.
+  const handleCancelled = () => {
+    clearCart();
+    setPlacedOrderId(null);
+    setPlacedAt(null);
+    navigate("/menu", { replace: true });
   };
 
   return (
@@ -183,7 +197,9 @@ export default function CheckoutPage() {
       <OrderSuccessModal
         open={placedOrderId !== null}
         orderId={placedOrderId}
+        placedAt={placedAt}
         onView={handleViewOrder}
+        onCancelled={handleCancelled}
       />
     </div>
   );

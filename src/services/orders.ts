@@ -34,6 +34,12 @@ export interface AdminOrder {
   notes: string | null;
   createdAt: number;
   readyAt: number | null;
+  /** Anti-abuse: row was soft-held by the trigger; staff must approve. */
+  requiresReview: boolean;
+  /** 0–100. Audit value, not enforced — set by check_order_abuse(). */
+  riskScore: number;
+  /** Per-browser device id captured at submit. Null on legacy orders. */
+  deviceId: string | null;
   items: AdminOrderItem[];
 }
 
@@ -46,6 +52,9 @@ interface OrderRow {
   notes: string | null;
   created_at: string;
   ready_at: string | null;
+  requires_review: boolean | null;
+  risk_score: number | null;
+  device_id: string | null;
   items: {
     line_id: string;
     item_id: string | null;
@@ -68,6 +77,9 @@ function rowToOrder(row: OrderRow): AdminOrder {
     notes: row.notes,
     createdAt: new Date(row.created_at).getTime(),
     readyAt: row.ready_at ? new Date(row.ready_at).getTime() : null,
+    requiresReview: row.requires_review === true,
+    riskScore: row.risk_score ?? 0,
+    deviceId: row.device_id,
     items: row.items.map((it) => ({
       lineId: it.line_id,
       itemId: it.item_id,
@@ -83,6 +95,7 @@ function rowToOrder(row: OrderRow): AdminOrder {
 
 const ORDERS_SELECT = `
   id, table_id, status, total, customer_name, notes, created_at, ready_at,
+  requires_review, risk_score, device_id,
   items:order_items(line_id, item_id, name, base_price, unit_price, quantity, image, selections)
 `;
 
@@ -219,6 +232,12 @@ export async function submitOrder(params: {
   total: number;
   customerName?: string;
   notes?: string;
+  /**
+   * Per-browser device id. Forwarded so the 0017 anti-abuse trigger can
+   * blocklist + rate-limit by device, and so cancel_my_order() can verify
+   * ownership during the 30-second undo window.
+   */
+  deviceId?: string;
 }): Promise<Order> {
   const orderId = generateOrderId();
 
@@ -229,6 +248,7 @@ export async function submitOrder(params: {
     total: params.total,
     customer_name: params.customerName ?? null,
     notes: params.notes ?? null,
+    device_id: params.deviceId ?? null,
   });
   if (orderError) throw orderError;
 
@@ -264,12 +284,63 @@ export async function submitOrder(params: {
   };
 }
 
+/**
+ * Customer-side cancel inside the 30-second undo window. Calls the
+ * cancel_my_order RPC which verifies device ownership + status='pending'
+ * + within 30s of submitted_at server-side. Returns true if the cancel
+ * actually flipped the row, false otherwise (out of window, wrong device,
+ * already advanced). Never throws — surface a user-friendly toast on false.
+ */
+export async function cancelMyOrder(
+  orderId: string,
+  deviceId: string
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("cancel_my_order", {
+    p_order_id: orderId,
+    p_device_id: deviceId,
+  });
+  if (error) {
+    console.warn("[services/orders] cancel_my_order failed:", error);
+    return false;
+  }
+  return data === true;
+}
+
 // ──────────────────────────────────────────────────────────────────
 // Mutations — admin
 // ──────────────────────────────────────────────────────────────────
 
 export function setOrderStatus(id: string, status: AdminOrderStatus) {
   return supabase.from("orders").update({ status }).eq("id", id);
+}
+
+/**
+ * Release a held order so the kitchen sees it. Bumps submitted_at to now()
+ * so the kitchen-side 30s gate doesn't accidentally hide a freshly-approved
+ * row that was originally placed minutes ago.
+ */
+export function approveHeldOrder(id: string) {
+  return supabase
+    .from("orders")
+    .update({ requires_review: false, submitted_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
+/**
+ * Add a device id to the blocklist. Future order inserts from this device
+ * are hard-rejected by the check_order_abuse() trigger (errcode P0001).
+ * Idempotent: device_id is the primary key, so a repeat insert is a no-op
+ * we explicitly swallow.
+ */
+export async function blockDevice(deviceId: string, reason?: string) {
+  const { error } = await supabase.from("device_blocklist").insert({
+    device_id: deviceId,
+    reason: reason ?? null,
+  });
+  if (error && error.code !== "23505") {
+    // 23505 = unique_violation — already blocked, treat as success.
+    throw error;
+  }
 }
 
 /**
