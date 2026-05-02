@@ -1,65 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import { optimisticUpdate } from "@/lib/optimistic";
+import {
+  archiveMenuItem,
+  createMenuItem,
+  fetchMenu,
+  saveMenuItem,
+  setMenuItemInStock,
+  setMenuItemsInStock,
+  setMenuItemPrice,
+  type MenuItemDraft,
+} from "@/services/menu";
 import { formatPrice } from "@/utils";
-import type { Category, MenuCategory, MenuItem, MenuOption } from "@/types";
+import type { Category, MenuItem } from "@/types";
 
-interface MenuItemRow {
-  id: string;
-  name: string;
-  price: number | string;
-  image: string;
-  category: MenuCategory;
-  description: string;
-  top_pick: boolean;
-  in_stock: boolean;
-  options: MenuOption[] | null;
-  position: number;
-}
-
-function rowToItem(row: MenuItemRow): MenuItem {
-  return {
-    id: row.id,
-    name: row.name,
-    price: Number(row.price),
-    image: row.image,
-    category: row.category,
-    description: row.description,
-    topPick: row.top_pick,
-    inStock: row.in_stock,
-    options: row.options ?? undefined,
-  };
-}
-
-export interface MenuItemDraft {
-  name: string;
-  price: number;
-  image: string;
-  category: MenuCategory;
-  description: string;
-  topPick: boolean;
-  inStock: boolean;
-  options?: MenuOption[];
-}
-
-interface CategoryRow {
-  id: string;
-  label: string;
-  icon: string | null;
-  position: number;
-  archived_at: string | null;
-}
-
-function rowToCategory(row: CategoryRow): Category {
-  return {
-    id: row.id,
-    label: row.label,
-    icon: row.icon,
-    position: row.position,
-    archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
-  };
-}
+export type { MenuItemDraft };
 
 interface UseAdminMenuReturn {
   items: MenuItem[];
@@ -76,12 +31,12 @@ interface UseAdminMenuReturn {
   archiveItem: (id: string) => Promise<void>;
 }
 
-function generateItemId(category: MenuCategory): string {
-  const stamp = Date.now().toString(36);
-  const rand = Math.random().toString(36).slice(2, 5);
-  return `${category}-${stamp}-${rand}`;
-}
-
+/**
+ * Admin-side menu state + mutations. Owns React state + realtime
+ * wiring; defers every Supabase call to @/services/menu so this hook
+ * stays focused on orchestration and the data layer is testable on
+ * its own.
+ */
 export function useAdminMenu(): UseAdminMenuReturn {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -89,35 +44,14 @@ export function useAdminMenu(): UseAdminMenuReturn {
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    // Categories drive the filter chips and the item-editor picker, so
-    // they need to load alongside the items themselves. One round trip
-    // via Promise.all instead of two sequential fetches.
-    const [itemsRes, catsRes] = await Promise.all([
-      supabase
-        .from("menu_items")
-        .select(
-          "id, name, price, image, category, description, top_pick, in_stock, options, position"
-        )
-        .is("archived_at", null)
-        .order("category", { ascending: true })
-        .order("position", { ascending: true }),
-      supabase
-        .from("categories")
-        .select("id, label, icon, position, archived_at")
-        .is("archived_at", null)
-        .order("position", { ascending: true }),
-    ]);
-
-    if (itemsRes.error || catsRes.error) {
-      const e = itemsRes.error ?? catsRes.error;
-      console.error("[admin/menu] fetch failed:", e);
-      setError(e?.message ?? "Couldn't load menu");
+    const result = await fetchMenu();
+    if (result.error) {
+      setError(result.error);
       return;
     }
-
     setError(null);
-    setItems(((itemsRes.data ?? []) as MenuItemRow[]).map(rowToItem));
-    setCategories(((catsRes.data ?? []) as CategoryRow[]).map(rowToCategory));
+    setItems(result.items);
+    setCategories(result.categories);
   }, []);
 
   useEffect(() => {
@@ -154,16 +88,8 @@ export function useAdminMenu(): UseAdminMenuReturn {
               item.id === id ? { ...item, inStock: !inStock } : item
             )
           ),
-        request: () =>
-          supabase
-            .from("menu_items")
-            .update({ in_stock: inStock })
-            .eq("id", id),
-        undoRequest: () =>
-          supabase
-            .from("menu_items")
-            .update({ in_stock: !inStock })
-            .eq("id", id),
+        request: () => setMenuItemInStock(id, inStock),
+        undoRequest: () => setMenuItemInStock(id, !inStock),
         refetch,
         errorMessage: "Couldn't update stock — try again",
         successMessage: inStock
@@ -207,11 +133,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
                 : item
             )
           ),
-        request: () =>
-          supabase
-            .from("menu_items")
-            .update({ in_stock: inStock })
-            .in("id", ids),
+        request: () => setMenuItemsInStock(ids, inStock),
         undoRequest: async () => {
           // Bucket ids by their prior in-stock state so each direction
           // is a single round trip rather than N writes.
@@ -222,16 +144,10 @@ export function useAdminMenu(): UseAdminMenuReturn {
           }
           const results = await Promise.all([
             toIn.length > 0
-              ? supabase
-                  .from("menu_items")
-                  .update({ in_stock: true })
-                  .in("id", toIn)
+              ? setMenuItemsInStock(toIn, true)
               : Promise.resolve({ error: null }),
             toOut.length > 0
-              ? supabase
-                  .from("menu_items")
-                  .update({ in_stock: false })
-                  .in("id", toOut)
+              ? setMenuItemsInStock(toOut, false)
               : Promise.resolve({ error: null }),
           ]);
           return { error: results.find((r) => r.error)?.error ?? null };
@@ -276,15 +192,10 @@ export function useAdminMenu(): UseAdminMenuReturn {
                   )
                 )
             : undefined,
-        request: () =>
-          supabase.from("menu_items").update({ price }).eq("id", id),
+        request: () => setMenuItemPrice(id, price),
         undoRequest:
           prevPrice !== undefined
-            ? () =>
-                supabase
-                  .from("menu_items")
-                  .update({ price: prevPrice })
-                  .eq("id", id)
+            ? () => setMenuItemPrice(id, prevPrice)
             : undefined,
         refetch,
         errorMessage: "Couldn't update price — try again",
@@ -295,28 +206,9 @@ export function useAdminMenu(): UseAdminMenuReturn {
     [items, refetch]
   );
 
-  const draftToRow = (draft: MenuItemDraft) => ({
-    name: draft.name,
-    price: draft.price,
-    image: draft.image,
-    category: draft.category,
-    description: draft.description,
-    top_pick: draft.topPick,
-    in_stock: draft.inStock,
-    options: draft.options && draft.options.length > 0 ? draft.options : null,
-  });
-
   const saveItem = useCallback(
     async (id: string, draft: MenuItemDraft) => {
-      const { error: updateError } = await supabase
-        .from("menu_items")
-        .update(draftToRow(draft))
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/menu] save failed:", updateError);
-        throw updateError;
-      }
+      await saveMenuItem(id, draft);
       await refetch();
     },
     [refetch]
@@ -324,22 +216,10 @@ export function useAdminMenu(): UseAdminMenuReturn {
 
   const createItem = useCallback(
     async (draft: MenuItemDraft) => {
-      const id = generateItemId(draft.category);
-      const lastInCategory =
-        items.filter((it) => it.category === draft.category).length * 10;
-
-      const { error: insertError } = await supabase
-        .from("menu_items")
-        .insert({
-          id,
-          ...draftToRow(draft),
-          position: lastInCategory + 10,
-        });
-
-      if (insertError) {
-        console.error("[admin/menu] create failed:", insertError);
-        throw insertError;
-      }
+      const itemsInCategory = items.filter(
+        (it) => it.category === draft.category
+      ).length;
+      await createMenuItem(draft, itemsInCategory);
       await refetch();
     },
     [items, refetch]
@@ -347,15 +227,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
 
   const archiveItem = useCallback(
     async (id: string) => {
-      const { error: updateError } = await supabase
-        .from("menu_items")
-        .update({ archived_at: new Date().toISOString() })
-        .eq("id", id);
-
-      if (updateError) {
-        console.error("[admin/menu] archive failed:", updateError);
-        throw updateError;
-      }
+      await archiveMenuItem(id);
       await refetch();
     },
     [refetch]

@@ -1,38 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { optimisticUpdate } from "@/lib/optimistic";
+import {
+  createBanner,
+  deleteBanner,
+  fetchBanners,
+  saveBanner,
+  setBannerActive,
+  swapBannerPositions,
+  type AdminBanner,
+  type BannerDraft,
+} from "@/services/banners";
 
-export interface AdminBanner {
-  id: string;
-  image: string;
-  title: string | null;
-  subtitle: string | null;
-  position: number;
-  active: boolean;
-}
-
-export interface BannerDraft {
-  image: string;
-  title: string | null;
-  subtitle: string | null;
-  active: boolean;
-}
-
-interface BannerRow {
-  id: string;
-  image: string;
-  title: string | null;
-  subtitle: string | null;
-  position: number;
-  active: boolean;
-}
-
-function generateId(): string {
-  const stamp = Date.now().toString(36);
-  const rand = Math.random().toString(36).slice(2, 5);
-  return `banner-${stamp}-${rand}`;
-}
+export type { AdminBanner, BannerDraft };
 
 interface UseAdminBannersReturn {
   items: AdminBanner[];
@@ -52,19 +32,13 @@ export function useAdminBanners(): UseAdminBannersReturn {
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    const { data, error: queryError } = await supabase
-      .from("banners")
-      .select("id, image, title, subtitle, position, active")
-      .order("position", { ascending: true });
-
-    if (queryError) {
-      console.error("[admin/banners] fetch failed:", queryError);
-      setError(queryError.message);
+    const result = await fetchBanners();
+    if (result.error) {
+      setError(result.error);
       return;
     }
-
     setError(null);
-    setItems((data ?? []) as BannerRow[]);
+    setItems(result.items);
   }, []);
 
   useEffect(() => {
@@ -85,8 +59,7 @@ export function useAdminBanners(): UseAdminBannersReturn {
           setItems((prev) =>
             prev.map((b) => (b.id === id ? { ...b, active } : b))
           ),
-        request: () =>
-          supabase.from("banners").update({ active }).eq("id", id),
+        request: () => setBannerActive(id, active),
         refetch,
         errorMessage: "Couldn't update banner",
         successMessage: null,
@@ -95,23 +68,9 @@ export function useAdminBanners(): UseAdminBannersReturn {
     [refetch]
   );
 
-  const draftToRow = (draft: BannerDraft) => ({
-    image: draft.image,
-    title: draft.title,
-    subtitle: draft.subtitle,
-    active: draft.active,
-  });
-
   const save = useCallback(
     async (id: string, draft: BannerDraft) => {
-      const { error: updateError } = await supabase
-        .from("banners")
-        .update(draftToRow(draft))
-        .eq("id", id);
-      if (updateError) {
-        console.error("[admin/banners] save failed:", updateError);
-        throw updateError;
-      }
+      await saveBanner(id, draft);
       await refetch();
     },
     [refetch]
@@ -119,20 +78,11 @@ export function useAdminBanners(): UseAdminBannersReturn {
 
   const create = useCallback(
     async (draft: BannerDraft) => {
-      const id = generateId();
       const maxPosition = items.reduce(
         (max, b) => (b.position > max ? b.position : max),
         0
       );
-      const { error: insertError } = await supabase.from("banners").insert({
-        id,
-        ...draftToRow(draft),
-        position: maxPosition + 10,
-      });
-      if (insertError) {
-        console.error("[admin/banners] create failed:", insertError);
-        throw insertError;
-      }
+      await createBanner(draft, maxPosition);
       await refetch();
     },
     [items, refetch]
@@ -140,14 +90,7 @@ export function useAdminBanners(): UseAdminBannersReturn {
 
   const remove = useCallback(
     async (id: string) => {
-      const { error: deleteError } = await supabase
-        .from("banners")
-        .delete()
-        .eq("id", id);
-      if (deleteError) {
-        console.error("[admin/banners] delete failed:", deleteError);
-        throw deleteError;
-      }
+      await deleteBanner(id);
       await refetch();
     },
     [refetch]
@@ -191,22 +134,8 @@ export function useAdminBanners(): UseAdminBannersReturn {
         performSwap();
       }
 
-      const [r1, r2] = await Promise.all([
-        supabase
-          .from("banners")
-          .update({ position: neighbor.position })
-          .eq("id", current.id),
-        supabase
-          .from("banners")
-          .update({ position: current.position })
-          .eq("id", neighbor.id),
-      ]);
-
-      if (r1.error || r2.error) {
-        console.error(
-          "[admin/banners] reorder failed:",
-          r1.error || r2.error
-        );
+      const { error: swapError } = await swapBannerPositions(current, neighbor);
+      if (swapError) {
         toast.error("Couldn't reorder");
         await refetch();
       }

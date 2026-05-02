@@ -1,46 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import { optimisticUpdate } from "@/lib/optimistic";
+import {
+  archiveTable,
+  countActiveOrdersForTable,
+  createTable,
+  fetchTables,
+  restoreTable,
+  rotateTableToken,
+  saveTableLabel,
+  type AdminTable,
+  type TableDraft,
+} from "@/services/tables";
 
-export interface AdminTable {
-  id: string;
-  label: string;
-  qrToken: string | null;
-  archivedAt: number | null;
-}
-
-interface TableRow {
-  id: string;
-  label: string;
-  qr_token: string | null;
-  archived_at: string | null;
-}
-
-function rowToTable(row: TableRow): AdminTable {
-  return {
-    id: row.id,
-    label: row.label,
-    qrToken: row.qr_token,
-    archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
-  };
-}
-
-export interface TableDraft {
-  id: string;
-  label: string;
-}
-
-/**
- * 32-char hex token. 128 bits of entropy is plenty for a non-secret
- * URL parameter that just gates "is this the right printed sticker".
- */
-function generateQrToken(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
+export type { AdminTable, TableDraft };
 
 interface UseAdminTablesReturn {
   items: AdminTable[];
@@ -60,31 +34,19 @@ interface UseAdminTablesReturn {
   countActiveOrders: (id: string) => Promise<number>;
 }
 
-function compareIds(a: string, b: string) {
-  // "T2" vs "T10" — natural order so T10 doesn't sort before T2.
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-}
-
 export function useAdminTables(): UseAdminTablesReturn {
   const [items, setItems] = useState<AdminTable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    const { data, error: queryError } = await supabase
-      .from("tables")
-      .select("id, label, qr_token, archived_at");
-
-    if (queryError) {
-      console.error("[admin/tables] fetch failed:", queryError);
-      setError(queryError.message);
+    const result = await fetchTables();
+    if (result.error) {
+      setError(result.error);
       return;
     }
-
     setError(null);
-    const rows = ((data ?? []) as TableRow[]).map(rowToTable);
-    rows.sort((a, b) => compareIds(a.id, b.id));
-    setItems(rows);
+    setItems(result.items);
   }, []);
 
   useEffect(() => {
@@ -106,19 +68,7 @@ export function useAdminTables(): UseAdminTablesReturn {
 
   const create = useCallback(
     async (draft: TableDraft) => {
-      // Mint a fresh token at create time so the new table is ready to
-      // print without a separate "generate token" step.
-      const { error: insertError } = await supabase
-        .from("tables")
-        .insert({
-          id: draft.id,
-          label: draft.label,
-          qr_token: generateQrToken(),
-        });
-      if (insertError) {
-        console.error("[admin/tables] create failed:", insertError);
-        throw insertError;
-      }
+      await createTable(draft);
       await refetch();
     },
     [refetch]
@@ -131,8 +81,7 @@ export function useAdminTables(): UseAdminTablesReturn {
           setItems((prev) =>
             prev.map((t) => (t.id === id ? { ...t, label } : t))
           ),
-        request: () =>
-          supabase.from("tables").update({ label }).eq("id", id),
+        request: () => saveTableLabel(id, label),
         refetch,
         errorMessage: "Couldn't save label",
         successMessage: null,
@@ -143,18 +92,13 @@ export function useAdminTables(): UseAdminTablesReturn {
 
   const archive = useCallback(
     async (id: string) => {
-      const at = new Date().toISOString();
-      const archivedAt = new Date(at).getTime();
+      const archivedAt = Date.now();
       return optimisticUpdate({
         apply: () =>
           setItems((prev) =>
             prev.map((t) => (t.id === id ? { ...t, archivedAt } : t))
           ),
-        request: () =>
-          supabase
-            .from("tables")
-            .update({ archived_at: at })
-            .eq("id", id),
+        request: () => archiveTable(id),
         refetch,
         errorMessage: "Couldn't archive",
         successMessage: null,
@@ -171,11 +115,7 @@ export function useAdminTables(): UseAdminTablesReturn {
           setItems((prev) =>
             prev.map((t) => (t.id === id ? { ...t, archivedAt: null } : t))
           ),
-        request: () =>
-          supabase
-            .from("tables")
-            .update({ archived_at: null })
-            .eq("id", id),
+        request: () => restoreTable(id),
         refetch,
         errorMessage: "Couldn't restore",
         successMessage: null,
@@ -186,39 +126,28 @@ export function useAdminTables(): UseAdminTablesReturn {
 
   const rotateToken = useCallback(
     async (id: string) => {
-      const next = generateQrToken();
-      // Optimistic so the QR modal re-renders immediately; if the write
-      // fails we refetch to reset to the server's truth.
-      setItems((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, qrToken: next } : t))
-      );
-      const { error: updateError } = await supabase
-        .from("tables")
-        .update({ qr_token: next })
-        .eq("id", id);
-      if (updateError) {
-        console.error("[admin/tables] rotate token failed:", updateError);
+      try {
+        // Optimistic so the QR modal re-renders immediately. The
+        // service throws on failure so we surface a toast + refetch
+        // to reset to the server's truth.
+        const next = await rotateTableToken(id);
+        setItems((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, qrToken: next } : t))
+        );
+        return next;
+      } catch (err) {
         toast.error("Couldn't rotate token");
         await refetch();
-        throw updateError;
+        throw err;
       }
-      return next;
     },
     [refetch]
   );
 
-  const countActiveOrders = useCallback(async (id: string) => {
-    const { count, error: queryError } = await supabase
-      .from("orders")
-      .select("id", { count: "exact", head: true })
-      .eq("table_id", id)
-      .in("status", ["pending", "preparing", "ready"]);
-    if (queryError) {
-      console.error("[admin/tables] active-order count failed:", queryError);
-      return 0;
-    }
-    return count ?? 0;
-  }, []);
+  const countActiveOrders = useCallback(
+    (id: string) => countActiveOrdersForTable(id),
+    []
+  );
 
   return {
     items,

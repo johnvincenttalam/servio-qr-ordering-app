@@ -1,33 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import { optimisticUpdate } from "@/lib/optimistic";
+import {
+  archiveCategory,
+  compareCategoriesForList,
+  countItemsInCategory,
+  createCategory,
+  fetchCategories,
+  restoreCategory,
+  saveCategoryDetails,
+  swapCategoryPositions,
+  type CategoryDraft,
+} from "@/services/categories";
 import type { Category } from "@/types";
 
-interface CategoryRow {
-  id: string;
-  label: string;
-  icon: string | null;
-  position: number;
-  archived_at: string | null;
-}
-
-function rowToCategory(row: CategoryRow): Category {
-  return {
-    id: row.id,
-    label: row.label,
-    icon: row.icon,
-    position: row.position,
-    archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
-  };
-}
-
-export interface CategoryDraft {
-  id: string;
-  label: string;
-  icon: string | null;
-}
+export type { CategoryDraft };
 
 interface UseAdminCategoriesReturn {
   items: Category[];
@@ -47,39 +35,19 @@ interface UseAdminCategoriesReturn {
   countItems: (id: string) => Promise<number>;
 }
 
-function compareIds(a: string, b: string) {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-}
-
 export function useAdminCategories(): UseAdminCategoriesReturn {
   const [items, setItems] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    const { data, error: queryError } = await supabase
-      .from("categories")
-      .select("id, label, icon, position, archived_at");
-
-    if (queryError) {
-      console.error("[admin/categories] fetch failed:", queryError);
-      setError(queryError.message);
+    const result = await fetchCategories();
+    if (result.error) {
+      setError(result.error);
       return;
     }
-
     setError(null);
-    const rows = ((data ?? []) as CategoryRow[]).map(rowToCategory);
-    rows.sort((a, b) => {
-      // Active rows first (sorted by position), archived rows after
-      // (sorted by id) so the manager always lists usable categories
-      // at the top regardless of when they were archived.
-      const aArchived = a.archivedAt !== null;
-      const bArchived = b.archivedAt !== null;
-      if (aArchived !== bArchived) return aArchived ? 1 : -1;
-      if (!aArchived) return a.position - b.position;
-      return compareIds(a.id, b.id);
-    });
-    setItems(rows);
+    setItems(result.items);
   }, []);
 
   useEffect(() => {
@@ -101,26 +69,11 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
 
   const create = useCallback(
     async (draft: CategoryDraft) => {
-      const trimmedId = draft.id.trim().toLowerCase();
-      const trimmedLabel = draft.label.trim();
-      // New categories land at the bottom — bigger than the largest
-      // current position so they don't disturb existing ordering.
       const maxPosition = items.reduce(
         (m, c) => (c.position > m ? c.position : m),
         0
       );
-      const { error: insertError } = await supabase
-        .from("categories")
-        .insert({
-          id: trimmedId,
-          label: trimmedLabel,
-          icon: draft.icon,
-          position: maxPosition + 10,
-        });
-      if (insertError) {
-        console.error("[admin/categories] create failed:", insertError);
-        throw insertError;
-      }
+      await createCategory(draft, maxPosition);
       await refetch();
     },
     [items, refetch]
@@ -140,11 +93,7 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
               c.id === id ? { ...c, label: trimmed, icon } : c
             )
           ),
-        request: () =>
-          supabase
-            .from("categories")
-            .update({ label: trimmed, icon })
-            .eq("id", id),
+        request: () => saveCategoryDetails(id, { label: trimmed, icon }),
         refetch,
         errorMessage: "Couldn't save changes",
         successMessage: null,
@@ -156,18 +105,13 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
 
   const archive = useCallback(
     async (id: string) => {
-      const at = new Date().toISOString();
-      const archivedAt = new Date(at).getTime();
+      const archivedAt = Date.now();
       return optimisticUpdate({
         apply: () =>
           setItems((prev) =>
             prev.map((c) => (c.id === id ? { ...c, archivedAt } : c))
           ),
-        request: () =>
-          supabase
-            .from("categories")
-            .update({ archived_at: at })
-            .eq("id", id),
+        request: () => archiveCategory(id),
         refetch,
         errorMessage: "Couldn't archive",
         successMessage: null,
@@ -184,11 +128,7 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
           setItems((prev) =>
             prev.map((c) => (c.id === id ? { ...c, archivedAt: null } : c))
           ),
-        request: () =>
-          supabase
-            .from("categories")
-            .update({ archived_at: null })
-            .eq("id", id),
+        request: () => restoreCategory(id),
         refetch,
         errorMessage: "Couldn't restore",
         successMessage: null,
@@ -218,14 +158,7 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
             if (c.id === neighbor.id) return { ...c, position: current.position };
             return c;
           });
-          // Re-sort same way as refetch (active first by position).
-          return next.sort((a, b) => {
-            const aA = a.archivedAt !== null;
-            const bA = b.archivedAt !== null;
-            if (aA !== bA) return aA ? 1 : -1;
-            if (!aA) return a.position - b.position;
-            return compareIds(a.id, b.id);
-          });
+          return next.sort(compareCategoriesForList);
         });
       };
 
@@ -238,22 +171,11 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
         performSwap();
       }
 
-      const [r1, r2] = await Promise.all([
-        supabase
-          .from("categories")
-          .update({ position: neighbor.position })
-          .eq("id", current.id),
-        supabase
-          .from("categories")
-          .update({ position: current.position })
-          .eq("id", neighbor.id),
-      ]);
-
-      if (r1.error || r2.error) {
-        console.error(
-          "[admin/categories] reorder failed:",
-          r1.error || r2.error
-        );
+      const { error: swapError } = await swapCategoryPositions(
+        current,
+        neighbor
+      );
+      if (swapError) {
         toast.error("Couldn't reorder");
         await refetch();
       }
@@ -261,18 +183,10 @@ export function useAdminCategories(): UseAdminCategoriesReturn {
     [items, refetch]
   );
 
-  const countItems = useCallback(async (id: string) => {
-    const { count, error: queryError } = await supabase
-      .from("menu_items")
-      .select("id", { count: "exact", head: true })
-      .eq("category", id)
-      .is("archived_at", null);
-    if (queryError) {
-      console.error("[admin/categories] count failed:", queryError);
-      return 0;
-    }
-    return count ?? 0;
-  }, []);
+  const countItems = useCallback(
+    (id: string) => countItemsInCategory(id),
+    []
+  );
 
   return {
     items,
