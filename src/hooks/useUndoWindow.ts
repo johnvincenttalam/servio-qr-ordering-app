@@ -72,16 +72,14 @@ export function useUndoWindow(
       return;
     }
     const interval = window.setInterval(() => {
-      setSecondsLeft((prev) => {
-        const next = Math.max(
-          0,
-          Math.ceil((WINDOW_MS - (Date.now() - placedAt)) / 1000)
-        );
-        if (next <= 0) {
-          setState((s) => (s === "idle" ? "expired" : s));
-        }
-        return next;
-      });
+      const next = Math.max(
+        0,
+        Math.ceil((WINDOW_MS - (Date.now() - placedAt)) / 1000)
+      );
+      setSecondsLeft(next);
+      if (next <= 0) {
+        setState((s) => (s === "idle" ? "expired" : s));
+      }
     }, 250);
     return () => window.clearInterval(interval);
   }, [orderId, placedAt, state, secondsLeft]);
