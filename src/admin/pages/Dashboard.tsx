@@ -1,5 +1,4 @@
 import {
-  Activity,
   Receipt,
   Wallet,
   Timer,
@@ -17,13 +16,54 @@ import { ADMIN_STATUS_LABEL, ADMIN_STATUS_PILL } from "../orderStatus";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/utils";
 
+/**
+ * Pull the first word from displayName, falling back to the email's
+ * local-part. Keeps the greeting personal even when no display name
+ * is set yet.
+ */
+function firstNameFrom(
+  displayName: string | null,
+  email: string | undefined
+): string {
+  if (displayName) {
+    const trimmed = displayName.trim();
+    if (trimmed) {
+      const first = trimmed.split(/\s+/)[0];
+      // Title-case in case the source is lowercase
+      return first[0].toUpperCase() + first.slice(1);
+    }
+  }
+  if (email) {
+    const local = email.split("@")[0];
+    if (local) return local[0].toUpperCase() + local.slice(1);
+  }
+  return "back";
+}
+
+function formatDateEyebrow(now: Date): string {
+  return now
+    .toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    })
+    .toUpperCase();
+}
+
 export default function DashboardPage() {
-  const { user, role } = useAuth();
+  const { user, displayName } = useAuth();
   const { stats, recent, isLoading } = useDashboardStats();
+
+  const firstName = firstNameFrom(displayName, user?.email);
 
   return (
     <div className="space-y-8">
-      <Header email={user?.email} role={role} />
+      <Header
+        firstName={firstName}
+        tablesLive={stats.tablesLive}
+        activeCount={stats.activeCount}
+        isLoading={isLoading}
+      />
 
       <Stats isLoading={isLoading} stats={stats} />
 
@@ -33,26 +73,67 @@ export default function DashboardPage() {
 }
 
 function Header({
-  email,
-  role,
+  firstName,
+  tablesLive,
+  activeCount,
+  isLoading,
 }: {
-  email: string | undefined;
-  role: string | null;
+  firstName: string;
+  tablesLive: number;
+  activeCount: number;
+  isLoading: boolean;
 }) {
+  const dateLabel = formatDateEyebrow(new Date());
+  // Service is "running" whenever there's at least one live table —
+  // matches what the operator can see on the Orders page banner. When
+  // it's quiet we soften the language so it doesn't read as a problem.
+  const running = tablesLive > 0;
+
   return (
     <header>
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Dashboard
+        Dashboard <span className="text-muted-foreground/60">·</span>{" "}
+        {dateLabel}
       </p>
-      <h1 className="mt-1 text-3xl font-bold tracking-tight">Welcome back</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {email}{" "}
-        {role && (
-          <>
-            · <span className="font-semibold text-foreground">{role}</span>
-          </>
-        )}
-      </p>
+      <h1 className="mt-1 text-3xl font-bold tracking-tight">
+        Welcome back, {firstName}.
+      </h1>
+      {!isLoading && (
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                running ? "bg-success" : "bg-muted-foreground/40"
+              )}
+              aria-hidden
+            />
+            {running ? "Service running" : "Service idle"}
+          </span>
+          {tablesLive > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                <span className="font-semibold text-foreground">
+                  {tablesLive}
+                </span>{" "}
+                {tablesLive === 1 ? "table" : "tables"} live
+              </span>
+            </>
+          )}
+          {activeCount > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                <span className="font-semibold text-foreground">
+                  {activeCount}
+                </span>{" "}
+                in the kitchen
+              </span>
+            </>
+          )}
+        </p>
+      )}
     </header>
   );
 }
@@ -68,79 +149,175 @@ function Stats({
   const revenueDelta = computeDelta(stats.todayRevenue, stats.yesterdayRevenue);
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <StatCard
-        icon={Activity}
-        label="Active orders"
-        value={isLoading ? "—" : String(stats.activeCount)}
-        subtext={
-          stats.activeCount === 0
-            ? "All caught up"
-            : "In the kitchen right now"
-        }
-        emphasis={stats.activeCount > 0}
-        tone="info"
-      />
-      <StatCard
-        icon={Receipt}
-        label="Today's orders"
-        value={isLoading ? "—" : String(stats.todayCount)}
-        delta={isLoading ? undefined : ordersDelta}
-        subtext="vs yesterday"
-      />
-      <StatCard
-        icon={Wallet}
-        label="Today's revenue"
-        value={isLoading ? "—" : formatPrice(stats.todayRevenue)}
-        delta={isLoading ? undefined : revenueDelta}
-        subtext="vs yesterday"
-        tone="success"
-      />
-      <StatCard
-        icon={CreditCard}
-        label="Avg ticket"
-        value={
-          isLoading
-            ? "—"
-            : stats.avgTicket === null
-            ? "—"
-            : formatPrice(stats.avgTicket)
-        }
-        subtext={stats.avgTicket === null ? "No orders yet" : "Per order today"}
-      />
-      <StatCard
-        icon={Star}
-        label="Top seller"
-        value={
-          isLoading || !stats.topItem
-            ? "—"
-            : stats.topItem.name
-        }
-        subtext={
-          isLoading || !stats.topItem
-            ? "No items sold yet"
-            : `${stats.topItem.quantity} sold today`
-        }
-        compact
-        tone="warning"
-      />
-      <StatCard
-        icon={Timer}
-        label="Avg prep time"
-        value={
-          isLoading
-            ? "—"
-            : stats.avgPrepMinutes === null
-            ? "—"
-            : `${stats.avgPrepMinutes.toFixed(1)} min`
-        }
-        subtext={
-          stats.avgPrepMinutes === null
-            ? "No completed orders"
-            : "Order to ready"
-        }
-      />
+    <section className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ActiveOrdersHero
+          isLoading={isLoading}
+          breakdown={stats.activeBreakdown}
+          total={stats.activeCount}
+        />
+        <StatCard
+          icon={Receipt}
+          label="Today's orders"
+          value={isLoading ? "—" : String(stats.todayCount)}
+          delta={isLoading ? undefined : ordersDelta}
+          subtext="vs yesterday"
+        />
+        <StatCard
+          icon={Wallet}
+          label="Today's revenue"
+          value={isLoading ? "—" : formatPrice(stats.todayRevenue)}
+          delta={isLoading ? undefined : revenueDelta}
+          subtext="vs yesterday"
+          tone="success"
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          icon={CreditCard}
+          label="Avg ticket"
+          value={
+            isLoading
+              ? "—"
+              : stats.avgTicket === null
+              ? "—"
+              : formatPrice(stats.avgTicket)
+          }
+          subtext={stats.avgTicket === null ? "No orders yet" : "Per order today"}
+        />
+        <StatCard
+          icon={Star}
+          label="Top seller"
+          value={isLoading || !stats.topItem ? "—" : stats.topItem.name}
+          subtext={
+            isLoading || !stats.topItem
+              ? "No items sold yet"
+              : `${stats.topItem.quantity} sold today`
+          }
+          compact
+          tone="warning"
+        />
+        <StatCard
+          icon={Timer}
+          label="Avg prep time"
+          value={
+            isLoading
+              ? "—"
+              : stats.avgPrepMinutes === null
+              ? "—"
+              : `${stats.avgPrepMinutes.toFixed(1)} min`
+          }
+          subtext={
+            stats.avgPrepMinutes === null
+              ? "No completed orders"
+              : "Order to ready"
+          }
+        />
+      </div>
     </section>
+  );
+}
+
+/**
+ * Featured "Active orders" card. Inverted (dark on dark) so it reads
+ * as the primary operational metric, with a status-broken-down chip
+ * row inside that mirrors the kitchen display's NEW / COOKING / READY
+ * columns. Quiet state collapses to a calm "All caught up" line.
+ */
+function ActiveOrdersHero({
+  isLoading,
+  breakdown,
+  total,
+}: {
+  isLoading: boolean;
+  breakdown: { pending: number; preparing: number; ready: number };
+  total: number;
+}) {
+  const isQuiet = total === 0 && !isLoading;
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-3xl p-4 transition-colors",
+        isQuiet
+          ? "border border-border bg-card text-foreground"
+          : "border border-foreground bg-foreground text-background"
+      )}
+    >
+      <p
+        className={cn(
+          "text-xs font-semibold uppercase tracking-wider",
+          isQuiet ? "text-muted-foreground" : "text-background/60"
+        )}
+      >
+        Active orders
+      </p>
+
+      <div>
+        <p className="text-4xl font-bold tracking-tight">
+          {isLoading ? "—" : total}
+        </p>
+        <p
+          className={cn(
+            "mt-0.5 text-xs",
+            isQuiet ? "text-muted-foreground" : "text-background/70"
+          )}
+        >
+          {isLoading
+            ? "Loading…"
+            : isQuiet
+            ? "All caught up"
+            : "In the kitchen right now"}
+        </p>
+      </div>
+
+      {!isLoading && total > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <BreakdownChip label="New" value={breakdown.pending} tone="warning" />
+          <BreakdownChip
+            label="Cooking"
+            value={breakdown.preparing}
+            tone="info"
+          />
+          <BreakdownChip label="Ready" value={breakdown.ready} tone="success" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Solid status colors matching the kitchen display + order status pills.
+// Solid (not tinted) so the chips read clearly against the inverted
+// dark hero card; the eyebrow + count layout still keeps them quieter
+// than the headline number.
+const BREAKDOWN_TONE: Record<"warning" | "info" | "success", string> = {
+  warning: "bg-warning text-foreground",
+  info: "bg-info text-white",
+  success: "bg-success text-white",
+};
+
+function BreakdownChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: keyof typeof BREAKDOWN_TONE;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-0.5 rounded-xl px-2.5 py-1.5",
+        BREAKDOWN_TONE[tone]
+      )}
+    >
+      <span className="text-[9px] font-bold uppercase tracking-wider opacity-90">
+        {label}
+      </span>
+      <span className="text-base font-bold tabular-nums leading-none">
+        {value}
+      </span>
+    </div>
   );
 }
 

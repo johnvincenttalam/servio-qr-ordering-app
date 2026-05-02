@@ -8,7 +8,12 @@ import { supabase } from "@/lib/supabase";
 import type { OrderStatus } from "@/types";
 
 export interface DashboardStats {
+  /** Total active orders right now — sum of the three breakdown buckets. */
   activeCount: number;
+  /** Per-status active counts so the dashboard hero can show NEW / COOKING / READY chips. */
+  activeBreakdown: { pending: number; preparing: number; ready: number };
+  /** Distinct tables currently holding at least one active order. */
+  tablesLive: number;
   todayCount: number;
   todayRevenue: number;
   avgPrepMinutes: number | null;
@@ -49,6 +54,8 @@ const ACTIVE: OrderStatus[] = ["pending", "preparing", "ready"];
 
 const EMPTY_STATS: DashboardStats = {
   activeCount: 0,
+  activeBreakdown: { pending: 0, preparing: 0, ready: 0 },
+  tablesLive: 0,
   todayCount: 0,
   todayRevenue: 0,
   avgPrepMinutes: null,
@@ -111,9 +118,12 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
         .select("total")
         .gte("created_at", yesterday)
         .lt("created_at", today),
+      // Pull the active rows themselves (not just count) so we can
+      // both bucket by status for the hero chips and dedupe table_ids
+      // for the "X tables live" subtitle. Active set is small.
       supabase
         .from("orders")
-        .select("id", { count: "exact", head: true })
+        .select("status, table_id")
         .in("status", ACTIVE),
       supabase
         .from("orders")
@@ -185,9 +195,24 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
     ? { name: topEntry[0], quantity: topEntry[1] }
     : null;
 
+  // Bucket the active-order rows into status counts + distinct
+  // table_id set in a single pass.
+  const activeRows =
+    (activeRes.data ?? []) as { status: OrderStatus; table_id: string }[];
+  const activeBreakdown = { pending: 0, preparing: 0, ready: 0 };
+  const liveTables = new Set<string>();
+  for (const row of activeRows) {
+    if (row.status === "pending") activeBreakdown.pending++;
+    else if (row.status === "preparing") activeBreakdown.preparing++;
+    else if (row.status === "ready") activeBreakdown.ready++;
+    liveTables.add(row.table_id);
+  }
+
   return {
     stats: {
-      activeCount: activeRes.count ?? 0,
+      activeCount: activeRows.length,
+      activeBreakdown,
+      tablesLive: liveTables.size,
       todayCount: todayRows.length,
       todayRevenue,
       avgPrepMinutes,
