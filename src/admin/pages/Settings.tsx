@@ -5,10 +5,13 @@ import {
   Check,
   ClipboardList,
   Power,
+  RotateCw,
   Store,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
+import type { QrRotationCadence } from "@/hooks/useRestaurantSettings";
 import { useAdminSettings, type SettingsUpdate } from "../useAdminSettings";
 
 /**
@@ -54,6 +57,11 @@ export default function SettingsPage() {
             requireCustomerName={settings.requireCustomerName}
             defaultPrepMinutes={settings.defaultPrepMinutes}
             requireSeatedSession={settings.requireSeatedSession}
+            onSave={(next) => update(next)}
+          />
+
+          <QrSecuritySection
+            cadence={settings.qrRotationCadence}
             onSave={(next) => update(next)}
           />
         </>
@@ -295,6 +303,85 @@ function BehaviorSection({
         dirty={dirty}
         pending={pending}
         valid={valid}
+        onSave={handleSave}
+      />
+    </SectionCard>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// QR security — rotation cadence. Each rotation invalidates printed
+// stickers, so the picker stays at "off" by default and any change
+// surfaces a banner on the Tables page when reprints are pending.
+// ─────────────────────────────────────────────────────────────────────
+const CADENCE_OPTIONS: readonly { id: QrRotationCadence; label: string }[] = [
+  { id: "off", label: "Off" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+];
+
+const CADENCE_DESCRIPTION: Record<QrRotationCadence, string> = {
+  off: "Tokens never auto-rotate. Use the Rotate action on a single table when you suspect that table's QR has leaked.",
+  weekly:
+    "Rotates every Sunday night. You'll need to reprint all stickers before Monday open — bulk Print is on the Tables page.",
+  monthly:
+    "Rotates on the last day of each month. Lower reprint burden than weekly; longer window where a leaked photo URL stays valid.",
+};
+
+function QrSecuritySection({
+  cadence,
+  onSave,
+}: {
+  cadence: QrRotationCadence;
+  onSave: (next: SettingsUpdate) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(cadence);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => setDraft(cadence), [cadence]);
+
+  const dirty = draft !== cadence;
+
+  const handleSave = async () => {
+    if (!dirty) return;
+    setPending(true);
+    try {
+      await onSave({ qrRotationCadence: draft });
+      toast.success("QR rotation schedule saved");
+    } catch {
+      // toasted in hook
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <SectionCard
+      icon={RotateCw}
+      tone="warning"
+      title="QR security"
+      description="Stale photos of your QR sticker can be replayed off-premises. Rotating tokens regularly invalidates them — but every rotation requires reprinting stickers, so pick a cadence your operation can keep up with."
+    >
+      <div className="space-y-3">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Rotation cadence
+          </p>
+          <SegmentedControl
+            value={draft}
+            onChange={setDraft}
+            options={CADENCE_OPTIONS}
+            ariaLabel="QR rotation cadence"
+          />
+        </div>
+        <p className="rounded-2xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+          {CADENCE_DESCRIPTION[draft]}
+        </p>
+      </div>
+      <SectionFooter
+        dirty={dirty}
+        pending={pending}
+        valid={true}
         onSave={handleSave}
       />
     </SectionCard>

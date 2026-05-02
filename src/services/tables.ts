@@ -15,6 +15,12 @@ export interface AdminTable {
    * this table. Existing in-flight orders are unaffected.
    */
   pausedAt: number | null;
+  /**
+   * The qr_token value that was last printed on a sticker. When
+   * different from qrToken, the sticker is stale and the table needs
+   * reprinting before customers can scan successfully.
+   */
+  printedToken: string | null;
 }
 
 export interface TableDraft {
@@ -28,6 +34,7 @@ interface TableRow {
   qr_token: string | null;
   archived_at: string | null;
   paused_at: string | null;
+  printed_token: string | null;
 }
 
 function rowToTable(row: TableRow): AdminTable {
@@ -37,6 +44,7 @@ function rowToTable(row: TableRow): AdminTable {
     qrToken: row.qr_token,
     archivedAt: row.archived_at ? new Date(row.archived_at).getTime() : null,
     pausedAt: row.paused_at ? new Date(row.paused_at).getTime() : null,
+    printedToken: row.printed_token,
   };
 }
 
@@ -73,7 +81,7 @@ export interface TablesFetchResult {
 export async function fetchTables(): Promise<TablesFetchResult> {
   const { data, error } = await supabase
     .from("tables")
-    .select("id, label, qr_token, archived_at, paused_at");
+    .select("id, label, qr_token, archived_at, paused_at, printed_token");
 
   if (error) {
     console.error("[services/tables] fetch failed:", error);
@@ -148,6 +156,22 @@ export function pauseTable(id: string) {
 /** Resume the table. Reverse of pauseTable. */
 export function resumeTable(id: string) {
   return supabase.from("tables").update({ paused_at: null }).eq("id", id);
+}
+
+/**
+ * Mark a table as freshly printed — sets printed_token to the current
+ * qr_token so the "reprint needed" badge clears. Called from the
+ * single-table print modal and the bulk-print action.
+ *
+ * Takes the token explicitly so the caller passes the value it
+ * actually rendered into the sticker; this avoids a race where the
+ * cron rotated qr_token in between the print render and the mark.
+ */
+export function markTablePrinted(id: string, qrToken: string) {
+  return supabase
+    .from("tables")
+    .update({ printed_token: qrToken })
+    .eq("id", id);
 }
 
 /**

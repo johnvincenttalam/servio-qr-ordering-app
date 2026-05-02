@@ -7,6 +7,7 @@ import {
   countActiveOrdersForTable,
   createTable,
   fetchTables,
+  markTablePrinted,
   pauseTable,
   restoreTable,
   resumeTable,
@@ -36,6 +37,12 @@ interface UseAdminTablesReturn {
   pause: (id: string) => Promise<void>;
   /** Resume the table. */
   resume: (id: string) => Promise<void>;
+  /**
+   * Confirm the operator has reprinted the sticker for this table —
+   * clears the "reprint needed" badge by aligning printed_token with
+   * the current qr_token.
+   */
+  markPrinted: (id: string, qrToken: string) => Promise<void>;
   /** Active orders (pending/preparing/ready) currently on a table. */
   countActiveOrders: (id: string) => Promise<number>;
 }
@@ -164,6 +171,24 @@ export function useAdminTables(): UseAdminTablesReturn {
     [refetch]
   );
 
+  const markPrinted = useCallback(
+    async (id: string, qrToken: string) =>
+      optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((t) =>
+              t.id === id ? { ...t, printedToken: qrToken } : t
+            )
+          ),
+        request: () => markTablePrinted(id, qrToken),
+        refetch,
+        errorMessage: "Couldn't mark printed",
+        successMessage: null,
+        logTag: "[admin/tables] mark printed",
+      }),
+    [refetch]
+  );
+
   const rotateToken = useCallback(
     async (id: string) => {
       try {
@@ -201,6 +226,7 @@ export function useAdminTables(): UseAdminTablesReturn {
     rotateToken,
     pause,
     resume,
+    markPrinted,
     countActiveOrders,
   };
 }

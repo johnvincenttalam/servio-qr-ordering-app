@@ -8,6 +8,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 
+export type QrRotationCadence = "off" | "weekly" | "monthly";
+
 export interface RestaurantSettings {
   name: string;
   currencySymbol: string;
@@ -20,6 +22,13 @@ export interface RestaurantSettings {
    * venues keep the trust-by-default model.
    */
   requireSeatedSession: boolean;
+  /**
+   * How often the daily cron rotates QR tokens. "off" = manual only.
+   * Each rotation invalidates printed stickers — the Tables page
+   * surfaces a "reprint needed" banner and bulk-print action so the
+   * cost stays manageable.
+   */
+  qrRotationCadence: QrRotationCadence;
   updatedAt: number;
 }
 
@@ -31,6 +40,7 @@ interface RestaurantSettingsRow {
   require_customer_name: boolean;
   default_prep_minutes: number;
   require_seated_session: boolean | null;
+  qr_rotation_cadence: QrRotationCadence | null;
   updated_at: string;
 }
 
@@ -46,6 +56,7 @@ export const DEFAULT_RESTAURANT_SETTINGS: RestaurantSettings = {
   requireCustomerName: false,
   defaultPrepMinutes: 9,
   requireSeatedSession: false,
+  qrRotationCadence: "off",
   updatedAt: 0,
 };
 
@@ -57,6 +68,7 @@ function rowToSettings(row: RestaurantSettingsRow): RestaurantSettings {
     requireCustomerName: row.require_customer_name,
     defaultPrepMinutes: row.default_prep_minutes,
     requireSeatedSession: row.require_seated_session ?? false,
+    qrRotationCadence: row.qr_rotation_cadence ?? "off",
     updatedAt: new Date(row.updated_at).getTime(),
   };
 }
@@ -96,7 +108,7 @@ export function RestaurantSettingsProvider({
       const { data, error } = await supabase
         .from("restaurant_settings")
         .select(
-          "id, name, currency_symbol, open_for_orders, require_customer_name, default_prep_minutes, require_seated_session, updated_at"
+          "id, name, currency_symbol, open_for_orders, require_customer_name, default_prep_minutes, require_seated_session, qr_rotation_cadence, updated_at"
         )
         .eq("id", 1)
         .maybeSingle();

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
+import { openStickerPrintWindow, renderQrSvg } from "../qrPrint";
 import type { AdminTable } from "../useAdminTables";
 
 interface TableQrModalProps {
@@ -22,18 +23,8 @@ interface TableQrModalProps {
   table: AdminTable | null;
   onClose: () => void;
   onRotate: (id: string) => Promise<string>;
-}
-
-/**
- * Build the URL the QR points at. Token is included only if one exists,
- * keeping backwards compatibility with stickers printed before tokens
- * were introduced.
- */
-function buildScanUrl(table: AdminTable): string {
-  const origin = window.location.origin;
-  const params = new URLSearchParams({ t: table.id });
-  if (table.qrToken) params.set("k", table.qrToken);
-  return `${origin}/?${params.toString()}`;
+  /** Mark the sticker as freshly printed so the reprint badge clears. */
+  onMarkPrinted: (id: string, qrToken: string) => Promise<void>;
 }
 
 export function TableQrModal({
@@ -41,6 +32,7 @@ export function TableQrModal({
   table,
   onClose,
   onRotate,
+  onMarkPrinted,
 }: TableQrModalProps) {
   const { settings } = useRestaurantSettings();
   const brandName = settings.name;
@@ -70,16 +62,7 @@ export function TableQrModal({
 
     (async () => {
       try {
-        // Lazy-load qrcode so it doesn't bloat the customer bundle
-        const qr = await import("qrcode");
-        const url = buildScanUrl(table);
-        const svg = await qr.toString(url, {
-          type: "svg",
-          margin: 1,
-          width: 320,
-          color: { dark: "#0a0a0a", light: "#ffffff" },
-          errorCorrectionLevel: "M",
-        });
+        const svg = await renderQrSvg(table);
         if (!cancelled) setSvgMarkup(svg);
       } catch (err) {
         console.error("[qr] render failed:", err);
@@ -121,148 +104,21 @@ export function TableQrModal({
 
   const handlePrint = () => {
     if (!table || !svgMarkup) return;
-    const win = window.open("", "_blank", "width=400,height=560");
-    if (!win) {
+    const opened = openStickerPrintWindow(brandName, [
+      { table, svgMarkup },
+    ]);
+    if (!opened) {
       toast.error("Browser blocked the print window.");
       return;
     }
-    const safeLabel = (table.label || "").replace(/</g, "&lt;");
-    const safeBrand = brandName.replace(/</g, "&lt;");
-    // Inline the SERVIO brand mark paths so the printed sticker
-    // doesn't depend on a font icon. currentColor flows from the
-    // .brand wrapper so the icon stays in sync with text colour at
-    // print time. Paths match /public/favicon.svg verbatim.
-    const brandIcon = `
-      <svg viewBox="0 0 568 568" fill="none" stroke="currentColor" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M138.5 122.334V235.501C138.5 253.284 153.05 267.834 170.833 267.834H235.5C244.075 267.834 252.299 264.427 258.363 258.364C264.427 252.3 267.833 244.076 267.833 235.501V122.334" />
-        <path d="M203.395 122.105V445.894" />
-        <path d="M429.501 332.501V122.334C408.063 122.334 387.503 130.85 372.344 146.01C357.184 161.169 348.668 181.729 348.668 203.167V300.167C348.668 317.951 363.218 332.501 381.001 332.501H429.501ZM429.501 332.501V445.667" />
-      </svg>`;
-    win.document.write(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${safeBrand} · ${table.id}</title>
-  <style>
-    @page { margin: 0; size: 80mm 110mm; }
-    html, body { margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-        sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      color: #0a0a0a;
-      background: #fff;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+    // Optimistically mark as printed when the print window opens. We
+    // can't reliably tell whether the user actually printed vs. cancelled,
+    // but triggering the print intent + getting the badge to clear is
+    // the right default — operator can rotate manually to re-flag if
+    // they cancelled and need to redo it.
+    if (table.qrToken) {
+      void onMarkPrinted(table.id, table.qrToken);
     }
-    .card {
-      width: 80mm;
-      height: 110mm;
-      padding: 7mm;
-      box-sizing: border-box;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 1.6mm;
-      padding: 1.2mm 2.4mm 1.2mm 1.2mm;
-      border-radius: 999px;
-      background: #0a0a0a;
-      color: #fff;
-      font-size: 8.5pt;
-      font-weight: 800;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-    .brand-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 4mm;
-      height: 4mm;
-      border-radius: 1.2mm;
-      background: #fff;
-      color: #0a0a0a;
-    }
-    .brand-icon svg { width: 2.6mm; height: 2.6mm; }
-    .qr-wrap {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4mm;
-      width: 100%;
-    }
-    .qr svg { width: 58mm; height: 58mm; display: block; }
-    .scan {
-      font-size: 9pt;
-      font-weight: 800;
-      letter-spacing: 0.22em;
-      color: #525252;
-      text-transform: uppercase;
-    }
-    .id-block { width: 100%; }
-    .id {
-      font-size: 28pt;
-      font-weight: 900;
-      letter-spacing: -0.03em;
-      line-height: 1;
-    }
-    .label {
-      margin-top: 1mm;
-      font-size: 9pt;
-      color: #525252;
-    }
-    .divider {
-      width: 16mm;
-      height: 0.6mm;
-      background: #0a0a0a;
-      border-radius: 999px;
-      margin: 2mm auto 0;
-    }
-    .tagline {
-      margin-top: 2mm;
-      font-size: 7.5pt;
-      letter-spacing: 0.16em;
-      color: #525252;
-      text-transform: uppercase;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="brand">
-      <span class="brand-icon">${brandIcon}</span>
-      <span>${safeBrand}</span>
-    </div>
-
-    <div class="qr-wrap">
-      <div class="qr">${svgMarkup}</div>
-      <div class="scan">Scan to order</div>
-    </div>
-
-    <div class="id-block">
-      <div class="id">${table.id}</div>
-      ${safeLabel ? `<div class="label">${safeLabel}</div>` : ""}
-      <div class="divider"></div>
-      <div class="tagline">No app · Tap &amp; go</div>
-    </div>
-  </div>
-  <script>
-    window.onload = () => { window.focus(); window.print(); };
-  </script>
-</body>
-</html>`);
-    win.document.close();
   };
 
   return (

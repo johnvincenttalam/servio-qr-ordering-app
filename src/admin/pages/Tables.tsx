@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircle,
   Archive,
@@ -9,7 +10,9 @@ import {
   Pencil,
   Play,
   Plus,
+  Printer,
   QrCode,
+  RotateCw,
   UserCheck,
 } from "lucide-react";
 import {
@@ -30,6 +33,7 @@ import {
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { AdminEmptyState } from "../components/AdminEmptyState";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
+import { openStickerPrintWindow, renderQrSvg } from "../qrPrint";
 import { TableEditor } from "./TableEditor";
 import { TableQrModal } from "./TableQrModal";
 
@@ -47,6 +51,7 @@ export default function TablesPage() {
     rotateToken,
     pause,
     resume,
+    markPrinted,
     countActiveOrders,
   } = useAdminTables();
 
@@ -77,6 +82,53 @@ export default function TablesPage() {
     ).length;
     return { active, archived, all: items.length, live };
   }, [items, sessions]);
+
+  // Tables whose qr_token has rotated since their last printed sticker.
+  // Drives the reprint-needed banner + per-card badge.
+  const needsReprint = useMemo(
+    () =>
+      items.filter(
+        (t) =>
+          !t.archivedAt &&
+          t.qrToken !== null &&
+          t.qrToken !== t.printedToken
+      ),
+    [items]
+  );
+
+  const [bulkPrinting, setBulkPrinting] = useState(false);
+  const handleBulkPrintReprints = async () => {
+    if (bulkPrinting || needsReprint.length === 0) return;
+    setBulkPrinting(true);
+    try {
+      const stickers = await Promise.all(
+        needsReprint.map(async (t) => ({
+          table: t,
+          svgMarkup: await renderQrSvg(t),
+        }))
+      );
+      const opened = openStickerPrintWindow(settings.name, stickers);
+      if (!opened) {
+        toast.error("Browser blocked the print window.");
+        return;
+      }
+      // Mark each as printed at the token value we just rendered. If
+      // the cron rotates again before the operator confirms the print
+      // dialog, the next refetch will re-flag any table whose token
+      // changed since.
+      await Promise.all(
+        needsReprint
+          .filter((t) => t.qrToken)
+          .map((t) => markPrinted(t.id, t.qrToken as string))
+      );
+      toast.success(`Printing ${stickers.length} sticker${stickers.length === 1 ? "" : "s"}`);
+    } catch (err) {
+      console.error("[admin/tables] bulk print failed:", err);
+      toast.error("Couldn't generate the bulk print.");
+    } finally {
+      setBulkPrinting(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     return items.filter((t) => {
@@ -155,6 +207,14 @@ export default function TablesPage() {
         </div>
       )}
 
+      {needsReprint.length > 0 && (
+        <ReprintBanner
+          count={needsReprint.length}
+          pending={bulkPrinting}
+          onPrintAll={handleBulkPrintReprints}
+        />
+      )}
+
       <FilterChips filter={filter} onChange={setFilter} counts={counts} />
 
       {isLoading ? (
@@ -210,6 +270,7 @@ export default function TablesPage() {
         table={qrTarget}
         onClose={() => setQrTargetId(null)}
         onRotate={rotateToken}
+        onMarkPrinted={markPrinted}
       />
     </div>
   );
@@ -321,6 +382,43 @@ function ArchiveDialog({
         </footer>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ReprintBanner({
+  count,
+  pending,
+  onPrintAll,
+}: {
+  count: number;
+  pending: boolean;
+  onPrintAll: () => Promise<void>;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-warning/40 bg-warning/10 p-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/30 text-foreground">
+        <RotateCw aria-hidden="true" className="h-4 w-4" strokeWidth={2.4} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold leading-tight">
+          {count} sticker{count === 1 ? "" : "s"} need reprinting
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          QR tokens rotated since last print. Replace stale stickers before
+          customers next scan.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onPrintAll}
+        disabled={pending}
+        aria-busy={pending || undefined}
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <Printer aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.4} />
+        {pending ? "Preparing…" : "Print all"}
+      </button>
+    </div>
   );
 }
 
@@ -477,6 +575,10 @@ function TableCard({
     requireSeatedSession &&
     customerSession !== null &&
     !customerSession.seated;
+  const needsReprint =
+    !isArchived &&
+    table.qrToken !== null &&
+    table.qrToken !== table.printedToken;
 
   return (
     <li
@@ -526,9 +628,16 @@ function TableCard({
             {table.label}
           </p>
           <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-            {isPaused ? (
+            {needsReprint ? (
               <>
-                <Pause className="h-3 w-3 shrink-0 text-warning" strokeWidth={2.4} />
+                <RotateCw aria-hidden="true" className="h-3 w-3 shrink-0 text-warning" strokeWidth={2.4} />
+                <span className="font-semibold text-foreground">Reprint needed</span>
+                <span aria-hidden>·</span>
+                <span>token rotated</span>
+              </>
+            ) : isPaused ? (
+              <>
+                <Pause aria-hidden="true" className="h-3 w-3 shrink-0 text-warning" strokeWidth={2.4} />
                 <span className="font-semibold text-foreground">Paused</span>
                 <span aria-hidden>·</span>
                 <span>blocking new orders</span>
