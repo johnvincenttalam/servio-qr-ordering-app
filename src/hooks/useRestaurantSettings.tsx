@@ -29,6 +29,17 @@ export interface RestaurantSettings {
    * cost stays manageable.
    */
   qrRotationCadence: QrRotationCadence;
+  /**
+   * IANA timezone (e.g., "Asia/Manila") the business_hours rows are
+   * interpreted in. Single value for v1 — multi-tenant SaaS would
+   * lift it per restaurant_settings row.
+   */
+  timezone: string;
+  /**
+   * Stop accepting new orders this many minutes before close_time.
+   * 0 = no last call. Single value applies to all weekdays.
+   */
+  lastCallMinutesBeforeClose: number;
   updatedAt: number;
 }
 
@@ -41,6 +52,8 @@ interface RestaurantSettingsRow {
   default_prep_minutes: number;
   require_seated_session: boolean | null;
   qr_rotation_cadence: QrRotationCadence | null;
+  timezone: string | null;
+  last_call_minutes_before_close: number | null;
   updated_at: string;
 }
 
@@ -57,6 +70,8 @@ export const DEFAULT_RESTAURANT_SETTINGS: RestaurantSettings = {
   defaultPrepMinutes: 9,
   requireSeatedSession: false,
   qrRotationCadence: "off",
+  timezone: "Asia/Manila",
+  lastCallMinutesBeforeClose: 0,
   updatedAt: 0,
 };
 
@@ -69,6 +84,8 @@ function rowToSettings(row: RestaurantSettingsRow): RestaurantSettings {
     defaultPrepMinutes: row.default_prep_minutes,
     requireSeatedSession: row.require_seated_session ?? false,
     qrRotationCadence: row.qr_rotation_cadence ?? "off",
+    timezone: row.timezone ?? "Asia/Manila",
+    lastCallMinutesBeforeClose: row.last_call_minutes_before_close ?? 0,
     updatedAt: new Date(row.updated_at).getTime(),
   };
 }
@@ -108,7 +125,7 @@ export function RestaurantSettingsProvider({
       const { data, error } = await supabase
         .from("restaurant_settings")
         .select(
-          "id, name, currency_symbol, open_for_orders, require_customer_name, default_prep_minutes, require_seated_session, qr_rotation_cadence, updated_at"
+          "id, name, currency_symbol, open_for_orders, require_customer_name, default_prep_minutes, require_seated_session, qr_rotation_cadence, timezone, last_call_minutes_before_close, updated_at"
         )
         .eq("id", 1)
         .maybeSingle();

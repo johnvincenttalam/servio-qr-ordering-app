@@ -47,6 +47,10 @@ export function useAdminSettings(): UseAdminSettingsReturn {
       payload.require_seated_session = next.requireSeatedSession;
     if (next.qrRotationCadence !== undefined)
       payload.qr_rotation_cadence = next.qrRotationCadence;
+    if (next.timezone !== undefined)
+      payload.timezone = next.timezone;
+    if (next.lastCallMinutesBeforeClose !== undefined)
+      payload.last_call_minutes_before_close = next.lastCallMinutesBeforeClose;
 
     const { error } = await supabase
       .from("restaurant_settings")

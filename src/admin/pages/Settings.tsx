@@ -3,7 +3,9 @@ import { toast } from "sonner";
 import {
   AlertCircle,
   Check,
+  ChevronDown,
   ClipboardList,
+  Clock,
   Power,
   RotateCw,
   Store,
@@ -12,6 +14,13 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import type { QrRotationCadence } from "@/hooks/useRestaurantSettings";
+import { useOpenStatus } from "@/hooks/useBusinessHours";
+import {
+  type BusinessHoursDay,
+  type Weekday,
+  formatNextOpenAt,
+} from "@/services/businessHours";
+import { useAdminBusinessHours } from "../useAdminBusinessHours";
 import { useAdminSettings, type SettingsUpdate } from "../useAdminSettings";
 
 /**
@@ -58,6 +67,12 @@ export default function SettingsPage() {
             defaultPrepMinutes={settings.defaultPrepMinutes}
             requireSeatedSession={settings.requireSeatedSession}
             onSave={(next) => update(next)}
+          />
+
+          <HoursSection
+            timezone={settings.timezone}
+            lastCallMinutes={settings.lastCallMinutesBeforeClose}
+            onSaveSettings={(next) => update(next)}
           />
 
           <QrSecuritySection
@@ -385,6 +400,320 @@ function QrSecuritySection({
         onSave={handleSave}
       />
     </SectionCard>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Business hours — schedule + timezone + last-call. Each day saves
+// independently so toggling Tuesday closed doesn't dirty Wednesday.
+// Live status banner up top reflects what the customer sees right now.
+// ─────────────────────────────────────────────────────────────────────
+const WEEKDAY_LABELS: Record<Weekday, string> = {
+  0: "Sunday",
+  1: "Monday",
+  2: "Tuesday",
+  3: "Wednesday",
+  4: "Thursday",
+  5: "Friday",
+  6: "Saturday",
+};
+const WEEKDAY_ORDER: Weekday[] = [1, 2, 3, 4, 5, 6, 0]; // Mon-first, Sun last
+
+// Common IANA timezones — keeps the dropdown manageable. Admins outside
+// the list can paste an arbitrary IANA string in the input.
+const COMMON_TIMEZONES = [
+  "Asia/Manila",
+  "Asia/Singapore",
+  "Asia/Hong_Kong",
+  "Asia/Tokyo",
+  "Asia/Bangkok",
+  "Asia/Jakarta",
+  "America/Los_Angeles",
+  "America/New_York",
+  "Europe/London",
+  "Australia/Sydney",
+  "UTC",
+];
+
+function HoursSection({
+  timezone,
+  lastCallMinutes,
+  onSaveSettings,
+}: {
+  timezone: string;
+  lastCallMinutes: number;
+  onSaveSettings: (next: SettingsUpdate) => Promise<void>;
+}) {
+  const { hours, saveDay } = useAdminBusinessHours();
+  const status = useOpenStatus();
+
+  // One drafts map for the whole schedule + the venue-wide settings.
+  // Single "Save changes" button at the bottom commits everything that
+  // changed — matches the per-section save pattern used elsewhere on
+  // this page and avoids the 7 tiny per-row buttons that are easy to
+  // miss when a row wraps.
+  const [draftHours, setDraftHours] = useState<
+    Record<Weekday, BusinessHoursDay>
+  >(hours);
+  const [draftTz, setDraftTz] = useState(timezone);
+  const [draftLastCall, setDraftLastCall] = useState(lastCallMinutes);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => setDraftHours(hours), [hours]);
+  useEffect(() => setDraftTz(timezone), [timezone]);
+  useEffect(() => setDraftLastCall(lastCallMinutes), [lastCallMinutes]);
+
+  const dirtyDays = (Object.values(draftHours) as BusinessHoursDay[]).filter(
+    (d) => {
+      const orig = hours[d.weekday];
+      return (
+        d.closed !== orig.closed ||
+        d.openTime !== orig.openTime ||
+        d.closeTime !== orig.closeTime
+      );
+    }
+  );
+
+  const settingsDirty =
+    draftTz !== timezone || draftLastCall !== lastCallMinutes;
+  const dirty = dirtyDays.length > 0 || settingsDirty;
+
+  const dayValid = (d: BusinessHoursDay) =>
+    d.closed ||
+    (d.openTime !== null &&
+      d.closeTime !== null &&
+      d.openTime < d.closeTime);
+  const allDaysValid = (Object.values(draftHours) as BusinessHoursDay[]).every(
+    dayValid
+  );
+  const settingsValid =
+    draftTz.trim().length > 0 &&
+    Number.isFinite(draftLastCall) &&
+    draftLastCall >= 0 &&
+    draftLastCall < 240;
+  const valid = allDaysValid && settingsValid;
+
+  const handleSave = async () => {
+    if (!dirty || !valid) return;
+    setPending(true);
+    try {
+      // Save settings first so the timezone change lands before any
+      // schedule edits are interpreted in the new tz.
+      if (settingsDirty) {
+        await onSaveSettings({
+          timezone: draftTz.trim(),
+          lastCallMinutesBeforeClose: draftLastCall,
+        });
+      }
+      // Then save each dirty day. Sequential rather than parallel —
+      // the table is only 7 rows so the round-trip cost is small,
+      // and sequential keeps error handling simple (first failure
+      // halts further writes; user retries).
+      for (const day of dirtyDays) {
+        await saveDay(day);
+      }
+      toast.success("Hours saved");
+    } catch {
+      // saveDay + onSaveSettings already toast on failure
+    } finally {
+      setPending(false);
+    }
+  };
+
+  // Derived status copy — combines the same OpenStatus the customer
+  // sees with the human-readable next-open time so staff can verify
+  // their schedule landed without scanning the QR themselves.
+  const statusCopy =
+    status.kind === "open"
+      ? `Open per schedule · closes at ${status.closesAt.toLocaleTimeString(
+          "en-US",
+          {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: timezone,
+          }
+        )}`
+      : status.kind === "closed-override"
+      ? "Force-closed by admin override"
+      : status.nextOpenAt
+      ? formatNextOpenAt(status.nextOpenAt, timezone)
+      : "Closed — no upcoming open time configured";
+
+  const statusTone =
+    status.kind === "open"
+      ? "border-success/40 bg-success/10 text-foreground"
+      : status.kind === "closed-override"
+      ? "border-destructive/40 bg-destructive/10 text-foreground"
+      : "border-warning/40 bg-warning/10 text-foreground";
+
+  const updateDay = (next: BusinessHoursDay) =>
+    setDraftHours((prev) => ({ ...prev, [next.weekday]: next }));
+
+  return (
+    <SectionCard
+      icon={Clock}
+      tone="info"
+      title="Business hours"
+      description="When the QR scanner unlocks the menu and when the kitchen accepts orders. The manual override (Order availability) above can still force-close the venue regardless of the schedule."
+    >
+      <div className="space-y-4">
+        {/* Live status banner — same OpenStatus the customer ClosedPage reads. */}
+        <div
+          className={cn(
+            "flex items-start gap-2 rounded-2xl border p-3 text-xs",
+            statusTone
+          )}
+        >
+          <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
+          <p className="font-medium">{statusCopy}</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+          <Field label="Timezone">
+            <div className="relative">
+              <select
+                value={draftTz}
+                onChange={(e) => setDraftTz(e.target.value)}
+                className="h-11 w-full appearance-none rounded-xl border border-border bg-card px-3 pr-9 text-sm font-medium text-foreground focus:border-foreground/40 focus:outline-none"
+              >
+                {COMMON_TIMEZONES.includes(draftTz) ? null : (
+                  <option value={draftTz}>{draftTz} (custom)</option>
+                )}
+                {COMMON_TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                strokeWidth={2.2}
+              />
+            </div>
+          </Field>
+          <Field label="Last call (min)">
+            <Input
+              type="number"
+              min={0}
+              max={239}
+              value={draftLastCall}
+              onChange={(e) => setDraftLastCall(Number(e.target.value))}
+              className="h-11 rounded-xl"
+            />
+          </Field>
+        </div>
+        <p className="-mt-1 text-[11px] text-muted-foreground">
+          Last call: stop accepting new orders this many minutes before
+          close. 0 = orders allowed until the second the venue closes.
+        </p>
+
+        {/* Per-day editor — pure controlled inputs, no per-row save. */}
+        <div className="space-y-2 border-t border-border pt-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Schedule
+            </p>
+            {dirtyDays.length > 0 && (
+              <span className="text-[11px] font-semibold text-warning">
+                {dirtyDays.length} day{dirtyDays.length === 1 ? "" : "s"} pending
+              </span>
+            )}
+          </div>
+          {WEEKDAY_ORDER.map((wd) => (
+            <DayRow
+              key={wd}
+              day={draftHours[wd]}
+              onChange={updateDay}
+              isInvalid={!dayValid(draftHours[wd])}
+            />
+          ))}
+        </div>
+
+        <SectionFooter
+          dirty={dirty}
+          pending={pending}
+          valid={valid}
+          onSave={handleSave}
+        />
+      </div>
+    </SectionCard>
+  );
+}
+
+function DayRow({
+  day,
+  onChange,
+  isInvalid,
+}: {
+  day: BusinessHoursDay;
+  onChange: (next: BusinessHoursDay) => void;
+  isInvalid: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/30 p-3 transition-colors",
+        isInvalid ? "border-destructive/40" : "border-border",
+        day.closed && "opacity-70"
+      )}
+    >
+      <span className="w-24 shrink-0 text-sm font-semibold">
+        {WEEKDAY_LABELS[day.weekday]}
+      </span>
+
+      <label className="inline-flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          checked={day.closed}
+          onChange={(e) => {
+            const closed = e.target.checked;
+            // Re-opening a previously-closed day: the DB stored null
+            // for both times when the row was last saved as closed,
+            // so unchecking just flips the flag without populating the
+            // times leaves them null and tanks validation. Backfill
+            // sensible defaults when the user re-opens a day; the
+            // displayed values from the input fallback then match the
+            // actual state.
+            onChange({
+              ...day,
+              closed,
+              openTime:
+                !closed && day.openTime === null ? "09:00" : day.openTime,
+              closeTime:
+                !closed && day.closeTime === null ? "22:00" : day.closeTime,
+            });
+          }}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="font-medium">Closed</span>
+      </label>
+
+      {!day.closed && (
+        <div className="flex items-center gap-2 text-xs">
+          <Input
+            type="time"
+            value={day.openTime ?? "09:00"}
+            onChange={(e) => onChange({ ...day, openTime: e.target.value })}
+            className="h-9 w-36 rounded-xl"
+          />
+          <span className="text-muted-foreground">to</span>
+          <Input
+            type="time"
+            value={day.closeTime ?? "22:00"}
+            onChange={(e) => onChange({ ...day, closeTime: e.target.value })}
+            className="h-9 w-36 rounded-xl"
+          />
+        </div>
+      )}
+
+      {isInvalid && (
+        <span className="ml-auto text-[11px] text-destructive">
+          Open must be before close
+        </span>
+      )}
+    </div>
   );
 }
 

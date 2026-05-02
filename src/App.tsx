@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { RestaurantSettingsProvider } from "@/hooks/useRestaurantSettings";
+import { BusinessHoursProvider } from "@/hooks/useBusinessHours";
 import { SettingsBoot } from "@/components/common/SettingsBoot";
 import { Toaster } from "@/components/ui/sonner";
 import HomePage from "@/pages/Home";
@@ -11,6 +12,7 @@ import CartPage from "@/pages/Cart";
 import CheckoutPage from "@/pages/Checkout";
 import OrderStatusPage from "@/pages/OrderStatus";
 import HistoryPage from "@/pages/History";
+import ClosedPage from "@/pages/Closed";
 
 const AdminApp = lazy(() => import("@/admin/AdminApp"));
 const KitchenApp = lazy(() => import("@/kitchen/KitchenApp"));
@@ -42,6 +44,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <RestaurantSettingsProvider>
+          <BusinessHoursProvider>
           <SettingsBoot />
           <Toaster position="top-center" />
           <Routes>
@@ -53,6 +56,7 @@ export default function App() {
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/order-status" element={<OrderStatusPage />} />
               <Route path="/history" element={<HistoryPage />} />
+              <Route path="/closed" element={<ClosedPage />} />
             </Route>
 
             {/* Admin (lazy chunk) */}
@@ -75,6 +79,7 @@ export default function App() {
               }
             />
           </Routes>
+          </BusinessHoursProvider>
         </RestaurantSettingsProvider>
       </AuthProvider>
     </BrowserRouter>

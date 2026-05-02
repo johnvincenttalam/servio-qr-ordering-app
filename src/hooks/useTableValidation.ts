@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { supabase } from "@/lib/supabase";
@@ -7,6 +7,7 @@ import {
   startCustomerSession,
   SESSION_ERROR_COPY,
 } from "@/services/sessions";
+import { useOpenStatus } from "@/hooks/useBusinessHours";
 
 interface UseTableValidationReturn {
   isValid: boolean;
@@ -20,6 +21,12 @@ export function useTableValidation(): UseTableValidationReturn {
   const setTableId = useAppStore((s) => s.setTableId);
   const setCustomerSession = useAppStore((s) => s.setCustomerSession);
   const clearCustomerSession = useAppStore((s) => s.clearCustomerSession);
+  const openStatus = useOpenStatus();
+  // Read fresh on every navigation decision rather than capturing in
+  // the effect's dep array — a status change should never re-run the
+  // validation flow, only steer where it lands.
+  const openStatusRef = useRef(openStatus);
+  openStatusRef.current = openStatus;
   const [error, setError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -113,7 +120,13 @@ export function useTableValidation(): UseTableValidationReturn {
       setTableId(tableParam);
       setIsValid(true);
       setIsChecking(false);
-      navigate("/menu", { replace: true });
+      // Hard-gate: if the venue is currently closed, route to the
+      // ClosedPage instead of /menu. Customer can still bookmark and
+      // come back during open hours; the menu remains reachable once
+      // the schedule says open.
+      const target =
+        openStatusRef.current.kind === "open" ? "/menu" : "/closed";
+      navigate(target, { replace: true });
     })();
 
     return () => {
