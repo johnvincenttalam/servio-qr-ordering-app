@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { supabase } from "@/lib/supabase";
+import { getDeviceId } from "@/lib/deviceId";
+import {
+  startCustomerSession,
+  SESSION_ERROR_COPY,
+} from "@/services/sessions";
 
 interface UseTableValidationReturn {
   isValid: boolean;
@@ -13,6 +18,8 @@ export function useTableValidation(): UseTableValidationReturn {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const setTableId = useAppStore((s) => s.setTableId);
+  const setCustomerSession = useAppStore((s) => s.setCustomerSession);
+  const clearCustomerSession = useAppStore((s) => s.clearCustomerSession);
   const [error, setError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -35,6 +42,7 @@ export function useTableValidation(): UseTableValidationReturn {
     // new QR is valid we'll set it from the success branch; if invalid
     // we want it cleared anyway so the customer sees a fresh state.
     setTableId(null);
+    clearCustomerSession();
 
     (async () => {
       // RLS allows anonymous SELECT only for non-archived tables, so a
@@ -65,8 +73,8 @@ export function useTableValidation(): UseTableValidationReturn {
       // table was set up before tokens existed — accept any (or no) k
       // until the owner generates a token. Once a token is set, the URL
       // must carry the matching k.
+      const k = searchParams.get("k");
       if (data.qr_token) {
-        const k = searchParams.get("k");
         if (!k || k !== data.qr_token) {
           setError(
             "This QR code is no longer valid. Ask the staff for an updated sticker."
@@ -74,6 +82,32 @@ export function useTableValidation(): UseTableValidationReturn {
           setIsChecking(false);
           return;
         }
+      }
+
+      // Start (or reuse) a customer session. The RPC handles the reuse
+      // logic server-side, so a refresh of this page returns the same
+      // session id rather than burning a fresh row each time. We only
+      // call it when there's a token to send — pre-token tables fall
+      // through to the legacy "no session" path that check_order_abuse
+      // still allows.
+      if (data.qr_token && k) {
+        const sessionResult = await startCustomerSession(
+          tableParam,
+          k,
+          getDeviceId()
+        );
+        if (cancelled) return;
+
+        if (!sessionResult.ok) {
+          setError(SESSION_ERROR_COPY[sessionResult.error]);
+          setIsChecking(false);
+          return;
+        }
+
+        setCustomerSession(
+          sessionResult.session.sessionId,
+          sessionResult.session.expiresAt
+        );
       }
 
       setTableId(tableParam);
@@ -85,7 +119,7 @@ export function useTableValidation(): UseTableValidationReturn {
     return () => {
       cancelled = true;
     };
-  }, [searchParams, setTableId, navigate]);
+  }, [searchParams, setTableId, setCustomerSession, clearCustomerSession, navigate]);
 
   return { isValid, isChecking, error };
 }

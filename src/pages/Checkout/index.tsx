@@ -17,6 +17,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const tableId = useAppStore((s) => s.tableId);
   const cart = useAppStore((s) => s.cart);
+  const sessionId = useAppStore((s) => s.sessionId);
   const getCartTotal = useAppStore((s) => s.getCartTotal);
   const clearCart = useAppStore((s) => s.clearCart);
   const setCurrentOrderId = useAppStore((s) => s.setCurrentOrderId);
@@ -71,6 +72,7 @@ export default function CheckoutPage() {
         customerName: customerName.trim() || undefined,
         notes: notes.trim() || undefined,
         deviceId: getDeviceId(),
+        sessionId: sessionId ?? undefined,
       });
       // Record on this device so the customer can see / reorder it
       // later from /history. Failures are swallowed inside the helper —

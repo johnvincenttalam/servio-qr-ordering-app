@@ -238,6 +238,12 @@ export async function submitOrder(params: {
    * ownership during the 30-second undo window.
    */
   deviceId?: string;
+  /**
+   * Customer session id from start_customer_session (Phase 2 / 0021).
+   * Required for new clients; legacy submissions without one are still
+   * accepted by the trigger for backward-compat.
+   */
+  sessionId?: string;
 }): Promise<Order> {
   const orderId = generateOrderId();
 
@@ -249,6 +255,7 @@ export async function submitOrder(params: {
     customer_name: params.customerName ?? null,
     notes: params.notes ?? null,
     device_id: params.deviceId ?? null,
+    session_id: params.sessionId ?? null,
   });
   if (orderError) throw orderError;
 

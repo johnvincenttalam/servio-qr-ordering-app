@@ -7,8 +7,18 @@ interface AppState {
   tableId: string | null;
   cart: CartItem[];
   currentOrderId: string | null;
+  /**
+   * Customer session id (Phase 2 / Control 2 — see ANTI_ABUSE.md).
+   * Threaded through order submission so check_order_abuse() can
+   * verify the device is still on an active visit.
+   */
+  sessionId: string | null;
+  /** ms epoch when the current session expires; null when no session. */
+  sessionExpiresAt: number | null;
 
   setTableId: (id: string | null) => void;
+  setCustomerSession: (sessionId: string, expiresAt: number) => void;
+  clearCustomerSession: () => void;
   addToCart: (
     item: { id: string; name: string; price: number; image: string },
     selections: CartItemSelection[],
@@ -40,8 +50,16 @@ export const useAppStore = create<AppState>()(
       tableId: null,
       cart: [],
       currentOrderId: null,
+      sessionId: null,
+      sessionExpiresAt: null,
 
       setTableId: (id) => set({ tableId: id }),
+
+      setCustomerSession: (sessionId, expiresAt) =>
+        set({ sessionId, sessionExpiresAt: expiresAt }),
+
+      clearCustomerSession: () =>
+        set({ sessionId: null, sessionExpiresAt: null }),
 
       addToCart: (item, selections, quantity = 1) =>
         set((state) => {
