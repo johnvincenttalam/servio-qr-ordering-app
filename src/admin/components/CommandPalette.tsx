@@ -13,6 +13,7 @@ import {
   ChefHat,
   ChevronRight,
   CornerDownLeft,
+  FileSpreadsheet,
   Image as ImageIcon,
   LayoutDashboard,
   ListOrdered,
@@ -167,6 +168,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       { kind: "page", id: "tables", label: "Tables", icon: QrCode, route: "/admin/tables", allowedRoles: ["admin"] },
       { kind: "page", id: "staff", label: "Staff", icon: Users, route: "/admin/staff", allowedRoles: ["admin"] },
       { kind: "page", id: "activity", label: "Activity", icon: Activity, route: "/admin/activity", allowedRoles: ["admin"] },
+      { kind: "page", id: "reports", label: "Reports", icon: FileSpreadsheet, route: "/admin/reports", allowedRoles: ["admin"] },
       { kind: "page", id: "settings", label: "Settings", icon: Settings, route: "/admin/settings", allowedRoles: ["admin"] },
       { kind: "page", id: "kitchen", label: "Kitchen Display", icon: ChefHat, route: "/kitchen", allowedRoles: ["admin", "kitchen"], hint: "Opens in this tab" },
     ];

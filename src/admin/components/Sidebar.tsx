@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
   Activity,
+  FileSpreadsheet,
   LayoutDashboard,
   ListOrdered,
   UtensilsCrossed,
@@ -74,6 +75,12 @@ const PRIMARY_NAV: NavItem[] = [
     to: "/admin/activity",
     icon: Activity,
     label: "Activity",
+    allowedRoles: ["admin"],
+  },
+  {
+    to: "/admin/reports",
+    icon: FileSpreadsheet,
+    label: "Reports",
     allowedRoles: ["admin"],
   },
   {

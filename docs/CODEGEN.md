@@ -71,7 +71,8 @@ Existing services (one file per domain — both customer and admin functions liv
 - `@/services/categories` — `fetchCategories`, `countItemsInCategory`, mutations (`createCategory`, `saveCategoryDetails`, `archiveCategory`, `restoreCategory`, `swapCategoryPositions`), `compareCategoriesForList`, `CategoryDraft`
 - `@/services/staff` — `fetchStaff` (list_staff RPC), `createStaff` + `resetStaffPassword` (edge functions), `setStaffRole`, `setStaffDisplayName`, `setStaffAvatar`, `clearStaffAvatar`, `deleteStaffMember`, `unpackEdgeError`, `StaffMember`, `CreateStaffParams`
 - `@/services/orders` — admin `fetchAdminOrders` + `setOrderStatus` + `sendReadyPush`; customer `fetchOrderStatus` + `submitOrder`
-- `@/services/dashboard` — `fetchDashboard` (5-query Promise.all + aggregations), `DEFAULT_DASHBOARD_STATS`
+- `@/services/dashboard` — `fetchDashboard(range)` (range-aware Promise.all + aggregations), `DEFAULT_DASHBOARD_STATS`, `DashboardRange`
+- `@/services/reports` — `fetchReport(range)` for arbitrary date windows; returns summary aggregates + flat order rows ready for CSV export
 - `@/services/activity` — `fetchActivity` (audit_log read with optional entity-type filter)
 - `@/services/tableSessions` — `fetchTableSessions` (per-table aggregate of active orders)
 - `@/services/profile` — self-service RPCs (`updateMyDisplayName`, `uploadMyAvatar`, `removeMyAvatar`, `changeMyPassword`)
@@ -118,6 +119,7 @@ Existing services (one file per domain — both customer and admin functions liv
 | Auth page chrome | `<AuthShell title subtitle>` | `@/admin/components/AuthShell` |
 | Inline confirm row | `<ConfirmFooterRow question onCancel onConfirm />` | `@/admin/components/ConfirmFooterRow` |
 | Customer empty state | `<EmptyState icon title description />` | `@/components/common/EmptyState` |
+| Inline sparkline chart | `<Sparkline values={[...]} strokeClassName fillClassName />` | `@/components/common/Sparkline` |
 
 **Rules**:
 - **NEVER** render `<Utensils />` from lucide as a brand mark. Use `<BrandMark />`. Lucide `Utensils` is reserved for in-data icons (e.g. menu-item placeholder).

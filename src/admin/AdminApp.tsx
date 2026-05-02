@@ -12,6 +12,7 @@ import StaffPage from "./pages/Staff";
 import TablesPage from "./pages/Tables";
 import CategoriesPage from "./pages/Categories";
 import ActivityPage from "./pages/Activity";
+import ReportsPage from "./pages/Reports";
 import SettingsPage from "./pages/Settings";
 import ProfilePage from "./pages/Profile";
 
@@ -77,6 +78,14 @@ export default function AdminApp() {
           element={
             <AuthGuard allowedRoles={["admin"]}>
               <ActivityPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="reports"
+          element={
+            <AuthGuard allowedRoles={["admin"]}>
+              <ReportsPage />
             </AuthGuard>
           }
         />
