@@ -21,6 +21,13 @@ interface MenuItemEditorProps {
   item: MenuItem | null; // null = create new
   /** Live, non-archived categories for the picker. */
   categories: Category[];
+  /**
+   * Optional pre-selected category for new items. Lets MenuManager
+   * carry its current category filter into the editor so an admin
+   * who's filtered to "Drinks" and clicks "Add item" lands on a
+   * draft already tagged Drinks. Ignored when editing.
+   */
+  initialCategory?: MenuCategory | null;
   onClose: () => void;
   onSave: (draft: MenuItemDraft) => Promise<void>;
   onArchive?: () => Promise<void>;
@@ -43,6 +50,7 @@ export function MenuItemEditor({
   open,
   item,
   categories,
+  initialCategory,
   onClose,
   onSave,
   onArchive,
@@ -75,16 +83,22 @@ export function MenuItemEditor({
       });
       setPriceText(String(item.price));
     } else {
-      // For new items, default to the first available category so
-      // the picker isn't empty.
+      // For new items, default to the caller-supplied initial category
+      // (typically MenuManager's current filter), falling back to the
+      // first available category so the picker isn't empty.
+      const fallback = categories[0]?.id ?? "";
+      const usable =
+        initialCategory && categories.some((c) => c.id === initialCategory)
+          ? initialCategory
+          : fallback;
       setDraft({
         ...EMPTY_DRAFT,
-        category: categories[0]?.id ?? "",
+        category: usable,
       });
       setPriceText("");
     }
     setError(null);
-  }, [open, item, categories]);
+  }, [open, item, categories, initialCategory]);
 
   const isValid =
     draft.name.trim().length > 0 &&

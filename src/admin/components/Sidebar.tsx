@@ -14,8 +14,6 @@ import {
   Settings,
   Utensils,
   ExternalLink,
-  Bell,
-  BellOff,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -114,7 +112,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, role, displayName, avatarUrl, signOut } = useAuth();
   const navigate = useNavigate();
   const [signingOut, setSigningOut] = useState(false);
-  const { pendingCount, soundEnabled, toggleSound } = useAdminOrderPulse();
+  const { pendingCount } = useAdminOrderPulse();
   const { settings } = useRestaurantSettings();
 
   const handleSignOut = async () => {
@@ -256,36 +254,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               )}
             </div>
           </NavLink>
-          {/* New-order chime toggle. Uses the same primed AudioContext as
-              the kitchen page — first activation needs this click as a
-              user gesture, hence the toggle being a real button. */}
-          <button
-            type="button"
-            onClick={toggleSound}
-            aria-pressed={soundEnabled}
-            title={
-              soundEnabled
-                ? "New-order chime on — click to mute"
-                : "New-order chime off — click to enable"
-            }
-            className={cn(
-              "mt-2 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors active:scale-[0.98]",
-              soundEnabled
-                ? "bg-success/10 text-foreground hover:bg-success/15"
-                : "text-foreground/80 hover:bg-muted hover:text-foreground"
-            )}
-          >
-            {soundEnabled ? (
-              <Bell className="h-3.5 w-3.5" strokeWidth={2.4} />
-            ) : (
-              <BellOff className="h-3.5 w-3.5" strokeWidth={2.2} />
-            )}
-            {soundEnabled ? "Chime on" : "Chime off"}
-          </button>
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="mt-1 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
+            className="mt-2 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98] disabled:opacity-50"
           >
             <LogOut className="h-3.5 w-3.5" strokeWidth={2.2} />
             Sign out

@@ -3,6 +3,7 @@ import {
   AlertCircle,
   Archive,
   ArchiveRestore,
+  Clock,
   Pencil,
   Plus,
   QrCode,
@@ -15,7 +16,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { formatPrice } from "@/utils";
 import { useAdminTables, type AdminTable } from "../useAdminTables";
+import { useTableSessions, type TableSession } from "../useTableSessions";
 import { AdminEmptyState } from "../components/AdminEmptyState";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import { TableEditor } from "./TableEditor";
@@ -36,17 +39,31 @@ export default function TablesPage() {
     countActiveOrders,
   } = useAdminTables();
 
+  const { sessions } = useTableSessions();
+
   const [filter, setFilter] = useState<Filter>("active");
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [archiveTargetId, setArchiveTargetId] = useState<string | null>(null);
   const [qrTargetId, setQrTargetId] = useState<string | null>(null);
 
+  // Tick "open 24m" labels on each card without requiring the sessions
+  // hook to refetch. 30s is enough resolution for human-scale "how long
+  // has this party been here" reading.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const counts = useMemo(() => {
     const active = items.filter((t) => !t.archivedAt).length;
     const archived = items.length - active;
-    return { active, archived, all: items.length };
-  }, [items]);
+    const live = items.filter(
+      (t) => !t.archivedAt && (sessions.get(t.id)?.activeCount ?? 0) > 0
+    ).length;
+    return { active, archived, all: items.length, live };
+  }, [items, sessions]);
 
   const filtered = useMemo(() => {
     return items.filter((t) => {
@@ -76,15 +93,34 @@ export default function TablesPage() {
           <h1 className="mt-1 text-3xl font-bold tracking-tight">
             Tables
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {counts.active} active
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
+            {counts.live > 0 && (
+              <>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inset-0 animate-ping rounded-full bg-success opacity-60" />
+                    <span className="relative h-1.5 w-1.5 rounded-full bg-success" />
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {counts.live}
+                  </span>{" "}
+                  live
+                </span>
+                <span aria-hidden>·</span>
+              </>
+            )}
+            <span>
+              {counts.active} active
+            </span>
             {counts.archived > 0 && (
               <>
-                {" · "}
-                <span className="font-semibold text-foreground">
-                  {counts.archived}
-                </span>{" "}
-                archived
+                <span aria-hidden>·</span>
+                <span>
+                  <span className="font-semibold text-foreground">
+                    {counts.archived}
+                  </span>{" "}
+                  archived
+                </span>
               </>
             )}
           </p>
@@ -118,6 +154,8 @@ export default function TablesPage() {
       ) : (
         <TablesGrid
           items={filtered}
+          sessions={sessions}
+          now={now}
           onEdit={(t) => setEditTargetId(t.id)}
           onArchive={(id) => setArchiveTargetId(id)}
           onRestore={restore}
@@ -316,12 +354,16 @@ function FilterChips({
 
 function TablesGrid({
   items,
+  sessions,
+  now,
   onEdit,
   onArchive,
   onRestore,
   onShowQr,
 }: {
   items: AdminTable[];
+  sessions: Map<string, TableSession>;
+  now: number;
   onEdit: (t: AdminTable) => void;
   onArchive: (id: string) => void;
   onRestore: (id: string) => void;
@@ -333,6 +375,8 @@ function TablesGrid({
         <TableCard
           key={table.id}
           table={table}
+          session={sessions.get(table.id) ?? null}
+          now={now}
           onEdit={() => onEdit(table)}
           onArchive={() => onArchive(table.id)}
           onRestore={() => onRestore(table.id)}
@@ -343,104 +387,206 @@ function TablesGrid({
   );
 }
 
+/**
+ * Format the age of an active session as the "OPEN" stat. We round to
+ * the nearest minute so the value doesn't flicker every second; for
+ * sessions over an hour we switch to "Xh Ym" so the column doesn't
+ * read "127m" once the dinner crowd is locked in.
+ */
+function formatOpenAge(start: number, now: number): string {
+  const seconds = Math.max(0, Math.floor((now - start) / 1000));
+  if (seconds < 60) return "<1m";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  return rem === 0 ? `${hours}h` : `${hours}h ${rem}m`;
+}
+
 function TableCard({
   table,
+  session,
+  now,
   onEdit,
   onArchive,
   onRestore,
   onShowQr,
 }: {
   table: AdminTable;
+  session: TableSession | null;
+  now: number;
   onEdit: () => void;
   onArchive: () => void;
   onRestore: () => void;
   onShowQr: () => void;
 }) {
   const isArchived = !!table.archivedAt;
+  const isLive = !isArchived && session !== null && session.activeCount > 0;
+
   return (
     <li
       className={cn(
-        "group flex items-center gap-3 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-foreground/20",
-        isArchived && "opacity-65"
+        "group flex flex-col gap-3 rounded-2xl border bg-card p-3 transition-colors",
+        isArchived
+          ? "border-border opacity-65"
+          : isLive
+          ? "border-success/40 hover:border-success/60"
+          : "border-border hover:border-foreground/20"
       )}
     >
-      <button
-        type="button"
-        onClick={onShowQr}
-        disabled={isArchived}
-        title={isArchived ? "Archived — restore to print QR" : "Open QR sticker"}
-        aria-label={`Open QR for ${table.id}`}
-        className={cn(
-          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted transition-colors",
-          !isArchived &&
-            "hover:bg-foreground hover:text-background active:scale-95 cursor-pointer",
-          isArchived && "cursor-not-allowed"
-        )}
-      >
-        <span className="text-base font-extrabold tracking-tight">
-          {table.id}
-        </span>
-      </button>
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={onShowQr}
+          disabled={isArchived}
+          title={isArchived ? "Archived — restore to print QR" : "Open QR sticker"}
+          aria-label={`Open QR for ${table.id}`}
+          className={cn(
+            "relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-foreground text-background transition-colors",
+            !isArchived &&
+              "hover:bg-foreground/90 active:scale-95 cursor-pointer",
+            isArchived && "cursor-not-allowed bg-muted text-foreground"
+          )}
+        >
+          <span className="text-base font-extrabold tracking-tight">
+            {table.id}
+          </span>
+          {isLive && (
+            <span
+              className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5"
+              aria-hidden
+            >
+              <span className="absolute inset-0 animate-ping rounded-full bg-success opacity-60" />
+              <span className="relative h-2.5 w-2.5 rounded-full bg-success ring-2 ring-card" />
+            </span>
+          )}
+        </button>
 
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight">
-          {table.label}
-        </p>
-        <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-          <QrCode className="h-3 w-3 shrink-0" strokeWidth={2.2} />
-          {isArchived
-            ? "Archived"
-            : table.qrToken
-            ? "Token live"
-            : "No token"}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight">
+            {table.label}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+            {isLive ? (
+              <>
+                <span className="font-semibold text-success">Live</span>
+                <span aria-hidden>·</span>
+                {session!.activeCount}{" "}
+                {session!.activeCount === 1 ? "order" : "orders"}
+              </>
+            ) : (
+              <>
+                <QrCode className="h-3 w-3 shrink-0" strokeWidth={2.2} />
+                {isArchived
+                  ? "Archived"
+                  : table.qrToken
+                  ? "Token live"
+                  : "No token"}
+              </>
+            )}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {!isArchived ? (
+            <>
+              <button
+                type="button"
+                onClick={onShowQr}
+                aria-label={`QR for ${table.id}`}
+                title="Show QR"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
+              >
+                <QrCode className="h-3.5 w-3.5" strokeWidth={2.2} />
+              </button>
+              <button
+                type="button"
+                onClick={onEdit}
+                aria-label={`Edit ${table.id}`}
+                title="Edit label"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
+              >
+                <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+              </button>
+              <button
+                type="button"
+                onClick={onArchive}
+                aria-label={`Archive ${table.id}`}
+                title="Archive"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+              >
+                <Archive className="h-3.5 w-3.5" strokeWidth={2.2} />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onRestore}
+              aria-label={`Restore ${table.id}`}
+              title="Restore"
+              className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
+            >
+              <ArchiveRestore className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Restore
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
-        {!isArchived ? (
-          <>
-            <button
-              type="button"
-              onClick={onShowQr}
-              aria-label={`QR for ${table.id}`}
-              title="Show QR"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
-            >
-              <QrCode className="h-3.5 w-3.5" strokeWidth={2.2} />
-            </button>
-            <button
-              type="button"
-              onClick={onEdit}
-              aria-label={`Edit ${table.id}`}
-              title="Edit label"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground active:scale-95"
-            >
-              <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
-            </button>
-            <button
-              type="button"
-              onClick={onArchive}
-              aria-label={`Archive ${table.id}`}
-              title="Archive"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
-            >
-              <Archive className="h-3.5 w-3.5" strokeWidth={2.2} />
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={onRestore}
-            aria-label={`Restore ${table.id}`}
-            title="Restore"
-            className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-semibold text-foreground/70 transition-colors hover:border-foreground/40 hover:text-foreground active:scale-95"
-          >
-            <ArchiveRestore className="h-3.5 w-3.5" strokeWidth={2.2} />
-            Restore
-          </button>
-        )}
-      </div>
+      {isLive && session && (
+        <SessionStrip session={session} now={now} />
+      )}
     </li>
+  );
+}
+
+function SessionStrip({
+  session,
+  now,
+}: {
+  session: TableSession;
+  now: number;
+}) {
+  return (
+    <div
+      className="grid grid-cols-3 gap-2 rounded-xl bg-muted/40 p-2.5"
+      aria-label="Live session stats"
+    >
+      <Stat label="Items" value={String(session.itemCount)} />
+      <Stat label="Tab" value={formatPrice(session.total)} />
+      <Stat
+        label="Open"
+        value={formatOpenAge(session.oldestCreatedAt, now)}
+        icon={Clock}
+      />
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon?: typeof Clock;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 flex items-center gap-1 truncate text-sm font-bold tabular-nums">
+        {Icon && (
+          <Icon
+            className="h-3 w-3 shrink-0 text-muted-foreground"
+            strokeWidth={2.4}
+          />
+        )}
+        <span className="truncate">{value}</span>
+      </p>
+    </div>
   );
 }
 

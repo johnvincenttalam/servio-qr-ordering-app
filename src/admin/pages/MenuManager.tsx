@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useAdminMenu } from "../useAdminMenu";
 import { AdminEmptyState } from "../components/AdminEmptyState";
 import { InlinePriceEdit } from "../components/InlinePriceEdit";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { MenuItemEditor } from "./MenuItemEditor";
 import type { Category, MenuItem, MenuCategory } from "@/types";
 
@@ -308,6 +309,9 @@ export default function MenuManagerPage() {
         open={drawer !== null}
         item={drawer?.mode === "edit" ? drawer.item : null}
         categories={categories}
+        initialCategory={
+          drawer?.mode === "create" && filter !== "all" ? filter : null
+        }
         onClose={() => setDrawer(null)}
         onSave={async (draft) => {
           if (drawer?.mode === "edit") {
@@ -734,6 +738,11 @@ function StockSwitch({
   );
 }
 
+const VIEW_MODE_OPTIONS = [
+  { id: "list" as const, icon: List, label: "List view" },
+  { id: "grid" as const, icon: LayoutGrid, label: "Grid view" },
+];
+
 function ViewToggle({
   mode,
   onChange,
@@ -741,38 +750,14 @@ function ViewToggle({
   mode: ViewMode;
   onChange: (mode: ViewMode) => void;
 }) {
-  const options: { id: ViewMode; icon: typeof List; label: string }[] = [
-    { id: "list", icon: List, label: "List view" },
-    { id: "grid", icon: LayoutGrid, label: "Grid view" },
-  ];
   return (
-    <div
-      role="group"
-      aria-label="View mode"
-      className="inline-flex rounded-full bg-muted p-0.5"
-    >
-      {options.map(({ id, icon: Icon, label }) => {
-        const isActive = mode === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onChange(id)}
-            aria-pressed={isActive}
-            title={label}
-            aria-label={label}
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full transition-all active:scale-95",
-              isActive
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Icon className="h-4 w-4" strokeWidth={2.2} />
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      value={mode}
+      onChange={onChange}
+      options={VIEW_MODE_OPTIONS}
+      iconOnly
+      ariaLabel="View mode"
+    />
   );
 }
 

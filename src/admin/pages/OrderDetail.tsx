@@ -17,6 +17,7 @@ import {
   ADMIN_STATUS_PROGRESSION,
 } from "../orderStatus";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
 import type {
   AdminOrder,
   AdminOrderStatus,
@@ -207,33 +208,19 @@ export function OrderDetail({
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Status
             </h3>
-            <div
-              role="tablist"
-              aria-label="Order status"
-              className="mt-2 flex rounded-full bg-muted p-1"
-            >
-              {ADMIN_STATUS_PROGRESSION.map((s) => {
-                const isActive = order.status === s;
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    role="tab"
-                    onClick={() => handleStatus(s)}
-                    aria-selected={isActive}
-                    disabled={pending || isActive}
-                    className={cn(
-                      "flex-1 rounded-full px-2 py-2 text-xs font-semibold transition-all active:scale-95 disabled:cursor-not-allowed",
-                      isActive
-                        ? "bg-foreground text-background shadow-sm"
-                        : "text-muted-foreground hover:text-foreground disabled:opacity-50"
-                    )}
-                  >
-                    {ADMIN_STATUS_LABEL[s]}
-                  </button>
-                );
-              })}
-            </div>
+            <SegmentedControl
+              value={order.status}
+              onChange={(s) => handleStatus(s)}
+              options={ADMIN_STATUS_PROGRESSION.map((id) => ({
+                id,
+                label: ADMIN_STATUS_LABEL[id],
+              }))}
+              variant="filled"
+              fill
+              disabled={pending}
+              ariaLabel="Order status"
+              className="mt-2"
+            />
             {order.status === "cancelled" && (
               <p className="mt-2 text-xs text-muted-foreground">
                 This order is cancelled. Set it to a different status to

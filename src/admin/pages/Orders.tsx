@@ -15,6 +15,7 @@ import {
   ADMIN_STATUS_PILL,
 } from "../orderStatus";
 import { AdminEmptyState } from "../components/AdminEmptyState";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { OrderDetail } from "./OrderDetail";
 
 type StatusFilter = "all" | "active" | AdminOrderStatus;
@@ -323,6 +324,13 @@ function StatusFilters({
   );
 }
 
+const DATE_RANGE_OPTIONS: readonly { id: DateRange; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "7d", label: "7d" },
+  { id: "30d", label: "30d" },
+  { id: "all", label: "All" },
+];
+
 function DateRangeFilter({
   value,
   onChange,
@@ -330,38 +338,13 @@ function DateRangeFilter({
   value: DateRange;
   onChange: (range: DateRange) => void;
 }) {
-  const options: { id: DateRange; label: string }[] = [
-    { id: "today", label: "Today" },
-    { id: "7d", label: "7d" },
-    { id: "30d", label: "30d" },
-    { id: "all", label: "All" },
-  ];
   return (
-    <div
-      role="group"
-      aria-label="Date range"
-      className="inline-flex shrink-0 rounded-full bg-muted p-0.5"
-    >
-      {options.map(({ id, label }) => {
-        const isActive = value === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onChange(id)}
-            aria-pressed={isActive}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95",
-              isActive
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      value={value}
+      onChange={onChange}
+      options={DATE_RANGE_OPTIONS}
+      ariaLabel="Date range"
+    />
   );
 }
 

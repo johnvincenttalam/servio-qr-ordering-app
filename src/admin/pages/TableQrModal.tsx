@@ -128,6 +128,15 @@ export function TableQrModal({
     }
     const safeLabel = (table.label || "").replace(/</g, "&lt;");
     const safeBrand = brandName.replace(/</g, "&lt;");
+    // Inline lucide-style "Utensils" SVG path so the printed sticker
+    // doesn't depend on a font icon. currentColor flows from the .brand
+    // wrapper so the icon stays in sync with text colour at print time.
+    const brandIcon = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+        <path d="M7 2v20" />
+        <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+      </svg>`;
     win.document.write(`<!doctype html>
 <html>
 <head>
@@ -144,48 +153,108 @@ export function TableQrModal({
       justify-content: center;
       min-height: 100vh;
       color: #0a0a0a;
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .card {
       width: 80mm;
-      padding: 8mm;
+      height: 110mm;
+      padding: 7mm;
       box-sizing: border-box;
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
     }
     .brand {
-      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 1.6mm;
+      padding: 1.2mm 2.4mm 1.2mm 1.2mm;
+      border-radius: 999px;
+      background: #0a0a0a;
+      color: #fff;
+      font-size: 8.5pt;
       font-weight: 800;
-      letter-spacing: 0.2em;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    .brand-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 4mm;
+      height: 4mm;
+      border-radius: 1.2mm;
+      background: #fff;
+      color: #0a0a0a;
+    }
+    .brand-icon svg { width: 2.6mm; height: 2.6mm; }
+    .qr-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4mm;
+      width: 100%;
+    }
+    .qr svg { width: 58mm; height: 58mm; display: block; }
+    .scan {
+      font-size: 9pt;
+      font-weight: 800;
+      letter-spacing: 0.22em;
       color: #525252;
       text-transform: uppercase;
-      margin-bottom: 2mm;
     }
-    .qr { display: flex; justify-content: center; }
-    .qr svg { width: 60mm; height: 60mm; }
+    .id-block { width: 100%; }
     .id {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-top: 4mm;
+      font-size: 28pt;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1;
     }
     .label {
-      font-size: 12px;
-      color: #525252;
       margin-top: 1mm;
-    }
-    .scan {
-      font-size: 10px;
+      font-size: 9pt;
       color: #525252;
-      margin-top: 4mm;
+    }
+    .divider {
+      width: 16mm;
+      height: 0.6mm;
+      background: #0a0a0a;
+      border-radius: 999px;
+      margin: 2mm auto 0;
+    }
+    .tagline {
+      margin-top: 2mm;
+      font-size: 7.5pt;
+      letter-spacing: 0.16em;
+      color: #525252;
+      text-transform: uppercase;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="brand">${safeBrand}</div>
-    <div class="qr">${svgMarkup}</div>
-    <div class="id">${table.id}</div>
-    <div class="label">${safeLabel}</div>
-    <div class="scan">Scan to order</div>
+    <div class="brand">
+      <span class="brand-icon">${brandIcon}</span>
+      <span>${safeBrand}</span>
+    </div>
+
+    <div class="qr-wrap">
+      <div class="qr">${svgMarkup}</div>
+      <div class="scan">Scan to order</div>
+    </div>
+
+    <div class="id-block">
+      <div class="id">${table.id}</div>
+      ${safeLabel ? `<div class="label">${safeLabel}</div>` : ""}
+      <div class="divider"></div>
+      <div class="tagline">No app · Tap &amp; go</div>
+    </div>
   </div>
   <script>
     window.onload = () => { window.focus(); window.print(); };
@@ -226,44 +295,55 @@ export function TableQrModal({
             {/*
               Sticker preview. Aspect ratio matches the printed output
               (80 × 110mm = 8 / 11) so what the operator sees here is
-              what comes out of the printer.
+              what comes out of the printer. Layout mirrors the print
+              template: brand chip top, QR with scan-to-order eyebrow
+              centred, table id + tagline anchored bottom.
             */}
-            <div className="flex w-[220px] flex-col items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-md shadow-black/5 aspect-[8/11]">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
-                <span className="flex h-4 w-4 items-center justify-center rounded-md bg-foreground text-background">
-                  <Utensils className="h-2.5 w-2.5" strokeWidth={2.6} />
+            <div className="flex w-[240px] flex-col items-center justify-between rounded-2xl border border-border bg-card px-4 py-4 shadow-md shadow-black/5 aspect-[8/11]">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-2 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-background">
+                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-[4px] bg-background text-foreground">
+                  <Utensils className="h-2 w-2" strokeWidth={2.8} />
                 </span>
                 <span className="truncate">{brandName}</span>
+              </span>
+
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex aspect-square w-[150px] items-center justify-center">
+                  {svgMarkup ? (
+                    <div
+                      // The qrcode lib bakes width/height attributes onto
+                      // the <svg> root. Force descendant svg to fill the
+                      // slot so the QR doesn't overflow at its intrinsic
+                      // 320×320 size.
+                      className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+                      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+                    />
+                  ) : error ? (
+                    <p className="text-[10px] text-destructive">{error}</p>
+                  ) : (
+                    <div className="h-10 w-10 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
+                  )}
+                </div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+                  Scan to order
+                </p>
               </div>
 
-              <div className="flex aspect-square w-[160px] items-center justify-center">
-                {svgMarkup ? (
-                  <div
-                    // The qrcode lib bakes width/height attributes onto
-                    // the <svg> root. Force descendant svg to fill the
-                    // 160×160 slot so the QR doesn't overflow at its
-                    // intrinsic 320×320 size.
-                    className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
-                    dangerouslySetInnerHTML={{ __html: svgMarkup }}
-                  />
-                ) : error ? (
-                  <p className="text-[10px] text-destructive">{error}</p>
-                ) : (
-                  <div className="h-10 w-10 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground" />
-                )}
-              </div>
-
-              <div className="text-center">
+              <div className="w-full text-center">
                 <p className="text-2xl font-extrabold leading-none tracking-tight">
                   {table.id}
                 </p>
                 {!isGenericLabel(table) && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-[10px] text-muted-foreground">
                     {table.label}
                   </p>
                 )}
-                <p className="mt-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground/80">
-                  Scan to order
+                <span
+                  aria-hidden
+                  className="mx-auto mt-2 block h-[2px] w-10 rounded-full bg-foreground"
+                />
+                <p className="mt-1.5 text-[8px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                  No app · Tap &amp; go
                 </p>
               </div>
             </div>

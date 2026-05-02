@@ -4,6 +4,7 @@ import { Menu, Search, Utensils } from "lucide-react";
 import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { Sidebar } from "./components/Sidebar";
 import { CommandPalette } from "./components/CommandPalette";
+import { AdminOrderPulseProvider } from "./useAdminOrderPulse";
 
 export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -34,6 +35,7 @@ export function AdminLayout() {
   }, []);
 
   return (
+    <AdminOrderPulseProvider>
     <div className="flex min-h-dvh bg-background text-foreground">
       <Sidebar
         isOpen={sidebarOpen}
@@ -79,5 +81,6 @@ export function AdminLayout() {
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
+    </AdminOrderPulseProvider>
   );
 }

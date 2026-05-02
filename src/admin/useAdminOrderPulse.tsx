@@ -1,23 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import { playChime, primeChime } from "@/lib/chime";
 
 const SOUND_PREF_KEY = "servio.admin.orderSound";
 
+interface AdminOrderPulseValue {
+  pendingCount: number;
+  soundEnabled: boolean;
+  toggleSound: () => void;
+}
+
+const AdminOrderPulseContext = createContext<AdminOrderPulseValue | null>(null);
+
 /**
- * Lightweight pulse for the admin layout: tracks the number of orders
- * currently in `pending` status and plays a chime whenever that count
- * strictly rises — i.e. a new customer order arrived. Mirrors the
- * kitchen's audio-cue behaviour so an admin who's on the Menu (or any
- * non-Orders) page still notices fresh tickets coming in.
- *
- * The badge count and the sound preference are both surfaced so the
- * Sidebar can render them consistently. The sound preference is
- * persisted in localStorage; the count is fetched on mount and
- * refreshed on any realtime change to the orders table.
+ * Provider that owns the single pulse subscription for the admin
+ * surface: the pending-orders count, a chime on count rise, and the
+ * persistent "sound on/off" preference. Mounted once at the
+ * AdminLayout level so Sidebar (badge) and Profile (toggle) can both
+ * read from context without each opening a duplicate Supabase channel.
  */
-export function useAdminOrderPulse() {
+export function AdminOrderPulseProvider({ children }: { children: ReactNode }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try {
@@ -85,5 +96,28 @@ export function useAdminOrderPulse() {
     });
   }, []);
 
-  return { pendingCount, soundEnabled, toggleSound };
+  return (
+    <AdminOrderPulseContext.Provider
+      value={{ pendingCount, soundEnabled, toggleSound }}
+    >
+      {children}
+    </AdminOrderPulseContext.Provider>
+  );
+}
+
+/**
+ * Read the pulse state from the provider. Falls back to a quiet,
+ * zero-count, no-op stub when called outside the provider so an
+ * orphan render doesn't crash.
+ */
+export function useAdminOrderPulse(): AdminOrderPulseValue {
+  const ctx = useContext(AdminOrderPulseContext);
+  if (!ctx) {
+    return {
+      pendingCount: 0,
+      soundEnabled: false,
+      toggleSound: () => undefined,
+    };
+  }
+  return ctx;
 }

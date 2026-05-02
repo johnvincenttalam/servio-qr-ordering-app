@@ -209,7 +209,7 @@ function EntryRow({ entry, now }: { entry: AuditLogEntry; now: number }) {
     : "Someone";
 
   return (
-    <li className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3">
+    <li className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
       <span
         className={cn(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",

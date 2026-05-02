@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AlertCircle, Hash, Type } from "lucide-react";
 import {
@@ -10,6 +10,28 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { AdminTable } from "../useAdminTables";
+
+/**
+ * Suggest the next sensible "T<number>" id based on existing tables.
+ * Heuristic: scan all current ids matching the T<number> shape, take
+ * the highest, return one above it. Custom ids like BAR1 / PATIO2 are
+ * ignored on purpose so the suggestion stays predictable — operators
+ * who use custom prefixes already have a system and won't want the
+ * picker overruling it.
+ *
+ * Falls back to "T1" when no matching id exists.
+ */
+function nextSuggestedId(existingIds: readonly string[]): string {
+  let highest = 0;
+  for (const id of existingIds) {
+    const match = /^T(\d+)$/i.exec(id);
+    if (match) {
+      const n = Number(match[1]);
+      if (Number.isFinite(n) && n > highest) highest = n;
+    }
+  }
+  return `T${highest + 1}`;
+}
 
 interface TableEditorProps {
   open: boolean;
@@ -38,10 +60,17 @@ export function TableEditor({
 
   useEffect(() => {
     if (!open) return;
-    setId(isNew ? "" : table?.id ?? "");
+    // Pre-fill the suggested id on open so the common path is
+    // "review → submit" rather than "type T<next> manually". The
+    // operator can still clear and enter a custom id (BAR1, PATIO3,
+    // etc.) — the input is fully editable.
+    setId(isNew ? nextSuggestedId(existingIds) : table?.id ?? "");
     setLabel(table?.label ?? "");
     setError(null);
     setSubmitting(false);
+    // existingIds intentionally omitted — recomputing on every keystroke
+    // upstream would clobber the user's edit. We snapshot at open-time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isNew, table]);
 
   const trimmedId = id.trim().toUpperCase();
@@ -49,6 +78,13 @@ export function TableEditor({
   const idValid = /^[A-Z0-9]{1,8}$/.test(trimmedId);
   const isDuplicate =
     isNew && existingIds.includes(trimmedId);
+  // Suggested next id is recomputed once per dialog open — taking the
+  // length as the dependency means we don't churn it while the user
+  // types into other fields.
+  const suggestedId = useMemo(
+    () => nextSuggestedId(existingIds),
+    [existingIds]
+  );
   const canSubmit =
     trimmedLabel.length > 0 &&
     (!isNew || (idValid && !isDuplicate));
@@ -113,7 +149,7 @@ export function TableEditor({
                 <Input
                   value={id}
                   onChange={(e) => setId(e.target.value.toUpperCase())}
-                  placeholder="T11"
+                  placeholder={suggestedId}
                   autoFocus
                   required
                   maxLength={8}

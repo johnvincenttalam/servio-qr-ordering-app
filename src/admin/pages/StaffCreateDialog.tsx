@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   AtSign,
@@ -34,6 +34,33 @@ const ROLE_ICON: Record<StaffRole, LucideIcon> = {
 
 const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 
+/**
+ * Convert a local-part style identifier into a human-readable name:
+ *   "maria.santos"  → "Maria Santos"
+ *   "john_doe"      → "John Doe"
+ *   "j-rodriguez"   → "J Rodriguez"
+ * Used to suggest a display name from an email/username so the
+ * operator usually only has to fix capitalisation rather than retype
+ * the same string.
+ */
+function prettyNameFromIdentifier(input: string): string {
+  return input
+    .split(/[._\-+ ]/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
+ * Keep only chars our username regex permits, lowercased. Anything
+ * that wouldn't pass USERNAME_RE gets dropped so the suggested
+ * username is always a valid one if accepted as-is.
+ */
+function suggestUsernameFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  return local.toLowerCase().replace(/[^a-z0-9._]/g, "");
+}
+
 interface StaffCreateDialogProps {
   open: boolean;
   onClose: () => void;
@@ -64,6 +91,12 @@ export function StaffCreateDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track which fields the operator has manually edited so the smart
+  // suggestions don't overwrite their work. Refs (not state) because
+  // we mutate these in onChange handlers and don't want a re-render.
+  const usernameTouched = useRef(false);
+  const displayNameTouched = useRef(false);
+
   // Reset form when modal opens or closes
   useEffect(() => {
     if (!open) {
@@ -73,8 +106,36 @@ export function StaffCreateDialog({
       setRole("kitchen");
       setError(null);
       setSubmitting(false);
+      usernameTouched.current = false;
+      displayNameTouched.current = false;
     }
   }, [open]);
+
+  // Smart fill: typing in the email field suggests a username and a
+  // display name. Both suggestions are only applied while the target
+  // field is still untouched — once the operator types in either,
+  // they're in control.
+  useEffect(() => {
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    if (!usernameTouched.current) {
+      setUsername(suggestUsernameFromEmail(trimmed));
+    }
+    if (!displayNameTouched.current) {
+      const local = trimmed.split("@")[0] ?? "";
+      setDisplayName(prettyNameFromIdentifier(local));
+    }
+  }, [email]);
+
+  // Typing directly in username also suggests a display name (covers
+  // the staff-without-email path). Skipped once display name has been
+  // manually edited.
+  useEffect(() => {
+    if (displayNameTouched.current) return;
+    const trimmed = username.trim();
+    if (!trimmed) return;
+    setDisplayName(prettyNameFromIdentifier(trimmed));
+  }, [username]);
 
   const trimmedEmail = email.trim().toLowerCase();
   const trimmedUsername = username.trim().toLowerCase();
@@ -149,7 +210,10 @@ export function StaffCreateDialog({
               />
               <Input
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  usernameTouched.current = true;
+                  setUsername(e.target.value);
+                }}
                 placeholder="maria"
                 maxLength={30}
                 autoCapitalize="none"
@@ -209,7 +273,10 @@ export function StaffCreateDialog({
               />
               <Input
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                onChange={(e) => {
+                  displayNameTouched.current = true;
+                  setDisplayName(e.target.value);
+                }}
                 placeholder="Maria Santos"
                 maxLength={60}
                 className="h-11 rounded-xl pl-9"

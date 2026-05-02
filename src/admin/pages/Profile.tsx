@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import {
   AlertCircle,
   AtSign,
+  Bell,
+  BellOff,
   Camera,
   Check,
   ChefHat,
@@ -23,6 +25,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useMyProfile } from "../useMyProfile";
+import { useAdminOrderPulse } from "../useAdminOrderPulse";
 import type { StaffRole } from "../useAdminStaff";
 
 const ROLE_LABEL: Record<StaffRole, string> = {
@@ -170,7 +173,66 @@ export default function ProfilePage() {
           return result;
         }}
       />
+
+      <NotificationsSection />
     </div>
+  );
+}
+
+function NotificationsSection() {
+  const { soundEnabled, toggleSound } = useAdminOrderPulse();
+  return (
+    <SectionCard
+      title="Notifications"
+      subtitle="Personal preferences for this device. Other staff keep their own settings."
+    >
+      <div className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <span
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+              soundEnabled
+                ? "bg-success/15 text-success"
+                : "bg-muted text-foreground/60"
+            )}
+          >
+            {soundEnabled ? (
+              <Bell className="h-4 w-4" strokeWidth={2.2} />
+            ) : (
+              <BellOff className="h-4 w-4" strokeWidth={2.2} />
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-tight">
+              New-order chime
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Plays a soft tone whenever a new order lands while you&apos;re
+              signed in. Saved to this device only.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={soundEnabled}
+          aria-label="New-order chime"
+          onClick={toggleSound}
+          className={cn(
+            "inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2",
+            soundEnabled ? "bg-success" : "bg-muted-foreground/30"
+          )}
+        >
+          <span
+            className={cn(
+              "h-5 w-5 rounded-full bg-white transition-transform",
+              soundEnabled ? "translate-x-5" : "translate-x-0"
+            )}
+            aria-hidden
+          />
+        </button>
+      </div>
+    </SectionCard>
   );
 }
 
