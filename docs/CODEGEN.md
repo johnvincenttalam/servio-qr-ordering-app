@@ -68,6 +68,8 @@ Existing services:
 - `@/services/tables` — tables, `TableDraft`, `generateQrToken`, `compareTableIds`
 - `@/services/banners` — banners, `BannerDraft`
 - `@/services/categories` — categories, `CategoryDraft`, `compareCategoriesForList`
+- `@/services/staff` — staff RPC + admin-create-staff / admin-reset-password edge calls, `StaffMember`, `CreateStaffParams`, `unpackEdgeError`
+- `@/services/orders` — admin order list + `setOrderStatus`, `sendReadyPush`
 
 ### Optimistic updates
 

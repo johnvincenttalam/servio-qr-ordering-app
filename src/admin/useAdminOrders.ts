@@ -1,77 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
-import type { CartItemSelection, OrderStatus } from "@/types";
+import {
+  fetchAdminOrders,
+  sendReadyPush,
+  setOrderStatus,
+  type AdminOrder,
+  type AdminOrderItem,
+  type AdminOrderStatus,
+} from "@/services/orders";
 
-export type AdminOrderStatus = OrderStatus | "served" | "cancelled";
-
-export interface AdminOrderItem {
-  lineId: string;
-  itemId: string | null;
-  name: string;
-  basePrice: number;
-  unitPrice: number;
-  quantity: number;
-  image: string;
-  selections: CartItemSelection[];
-}
-
-export interface AdminOrder {
-  id: string;
-  tableId: string;
-  status: AdminOrderStatus;
-  total: number;
-  customerName: string | null;
-  notes: string | null;
-  createdAt: number;
-  readyAt: number | null;
-  items: AdminOrderItem[];
-}
-
-interface OrderRow {
-  id: string;
-  table_id: string;
-  status: AdminOrderStatus;
-  total: number | string;
-  customer_name: string | null;
-  notes: string | null;
-  created_at: string;
-  ready_at: string | null;
-  items: {
-    line_id: string;
-    item_id: string | null;
-    name: string;
-    base_price: number | string;
-    unit_price: number | string;
-    quantity: number;
-    image: string;
-    selections: CartItemSelection[] | null;
-  }[];
-}
-
-function rowToOrder(row: OrderRow): AdminOrder {
-  return {
-    id: row.id,
-    tableId: row.table_id,
-    status: row.status,
-    total: Number(row.total),
-    customerName: row.customer_name,
-    notes: row.notes,
-    createdAt: new Date(row.created_at).getTime(),
-    readyAt: row.ready_at ? new Date(row.ready_at).getTime() : null,
-    items: row.items.map((it) => ({
-      lineId: it.line_id,
-      itemId: it.item_id,
-      name: it.name,
-      basePrice: Number(it.base_price),
-      unitPrice: Number(it.unit_price),
-      quantity: it.quantity,
-      image: it.image,
-      selections: it.selections ?? [],
-    })),
-  };
-}
+export type { AdminOrder, AdminOrderItem, AdminOrderStatus };
 
 interface UseAdminOrdersReturn {
   orders: AdminOrder[];
@@ -81,33 +20,19 @@ interface UseAdminOrdersReturn {
   setStatus: (id: string, status: AdminOrderStatus) => Promise<void>;
 }
 
-const QUERY_LIMIT = 200;
-
 export function useAdminOrders(): UseAdminOrdersReturn {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    const { data, error: queryError } = await supabase
-      .from("orders")
-      .select(
-        `
-        id, table_id, status, total, customer_name, notes, created_at, ready_at,
-        items:order_items(line_id, item_id, name, base_price, unit_price, quantity, image, selections)
-        `
-      )
-      .order("created_at", { ascending: false })
-      .limit(QUERY_LIMIT);
-
-    if (queryError) {
-      console.error("[admin/orders] fetch failed:", queryError);
-      setError(queryError.message);
+    const result = await fetchAdminOrders();
+    if (result.error) {
+      setError(result.error);
       return;
     }
-
     setError(null);
-    setOrders(((data ?? []) as OrderRow[]).map(rowToOrder));
+    setOrders(result.orders);
   }, []);
 
   useEffect(() => {
@@ -134,10 +59,7 @@ export function useAdminOrders(): UseAdminOrdersReturn {
         prev.map((o) => (o.id === id ? { ...o, status } : o))
       );
 
-      const { error: updateError } = await supabase
-        .from("orders")
-        .update({ status })
-        .eq("id", id);
+      const { error: updateError } = await setOrderStatus(id, status);
 
       if (updateError) {
         console.error("[admin/orders] status update failed:", updateError);
@@ -146,15 +68,8 @@ export function useAdminOrders(): UseAdminOrdersReturn {
         return;
       }
 
-      // Fire-and-forget push when status hits 'ready'.
       if (status === "ready") {
-        supabase.functions
-          .invoke("send-order-push", { body: { order_id: id } })
-          .then(({ error: pushError }) => {
-            if (pushError) {
-              console.warn("[admin/orders] push send failed:", pushError);
-            }
-          });
+        sendReadyPush(id);
       }
     },
     [refetch]
