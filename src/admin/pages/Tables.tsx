@@ -4,11 +4,13 @@ import {
   Archive,
   ArchiveRestore,
   Clock,
+  LogOut,
   Pause,
   Pencil,
   Play,
   Plus,
   QrCode,
+  UserCheck,
 } from "lucide-react";
 import {
   Dialog,
@@ -21,6 +23,11 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/utils";
 import { useAdminTables, type AdminTable } from "../useAdminTables";
 import { useTableSessions, type TableSession } from "../useTableSessions";
+import {
+  useCustomerSessions,
+  type AdminCustomerSession,
+} from "../useCustomerSessions";
+import { useRestaurantSettings } from "@/hooks/useRestaurantSettings";
 import { AdminEmptyState } from "../components/AdminEmptyState";
 import { ConfirmFooterRow } from "../components/ConfirmFooterRow";
 import { TableEditor } from "./TableEditor";
@@ -44,6 +51,8 @@ export default function TablesPage() {
   } = useAdminTables();
 
   const { sessions } = useTableSessions();
+  const customerSessions = useCustomerSessions();
+  const { settings } = useRestaurantSettings();
 
   const [filter, setFilter] = useState<Filter>("active");
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
@@ -159,12 +168,16 @@ export default function TablesPage() {
         <TablesGrid
           items={filtered}
           sessions={sessions}
+          customerSessions={customerSessions.byTableId}
+          requireSeatedSession={settings.requireSeatedSession}
           now={now}
           onEdit={(t) => setEditTargetId(t.id)}
           onArchive={(id) => setArchiveTargetId(id)}
           onRestore={restore}
           onPause={pause}
           onResume={resume}
+          onSeat={customerSessions.seat}
+          onBump={customerSessions.bump}
           onShowQr={(id) => setQrTargetId(id)}
         />
       )}
@@ -361,22 +374,30 @@ function FilterChips({
 function TablesGrid({
   items,
   sessions,
+  customerSessions,
+  requireSeatedSession,
   now,
   onEdit,
   onArchive,
   onRestore,
   onPause,
   onResume,
+  onSeat,
+  onBump,
   onShowQr,
 }: {
   items: AdminTable[];
   sessions: Map<string, TableSession>;
+  customerSessions: Map<string, AdminCustomerSession>;
+  requireSeatedSession: boolean;
   now: number;
   onEdit: (t: AdminTable) => void;
   onArchive: (id: string) => void;
   onRestore: (id: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
+  onSeat: (sessionId: string) => Promise<void>;
+  onBump: (sessionId: string) => Promise<void>;
   onShowQr: (id: string) => void;
 }) {
   return (
@@ -386,12 +407,16 @@ function TablesGrid({
           key={table.id}
           table={table}
           session={sessions.get(table.id) ?? null}
+          customerSession={customerSessions.get(table.id) ?? null}
+          requireSeatedSession={requireSeatedSession}
           now={now}
           onEdit={() => onEdit(table)}
           onArchive={() => onArchive(table.id)}
           onRestore={() => onRestore(table.id)}
           onPause={() => onPause(table.id)}
           onResume={() => onResume(table.id)}
+          onSeat={onSeat}
+          onBump={onBump}
           onShowQr={() => onShowQr(table.id)}
         />
       ))}
@@ -418,27 +443,40 @@ function formatOpenAge(start: number, now: number): string {
 function TableCard({
   table,
   session,
+  customerSession,
+  requireSeatedSession,
   now,
   onEdit,
   onArchive,
   onRestore,
   onPause,
   onResume,
+  onSeat,
+  onBump,
   onShowQr,
 }: {
   table: AdminTable;
   session: TableSession | null;
+  customerSession: AdminCustomerSession | null;
+  requireSeatedSession: boolean;
   now: number;
   onEdit: () => void;
   onArchive: () => void;
   onRestore: () => void;
   onPause: () => void;
   onResume: () => void;
+  onSeat: (sessionId: string) => Promise<void>;
+  onBump: (sessionId: string) => Promise<void>;
   onShowQr: () => void;
 }) {
   const isArchived = !!table.archivedAt;
   const isPaused = !isArchived && !!table.pausedAt;
   const isLive = !isArchived && session !== null && session.activeCount > 0;
+  const needsSeating =
+    !isArchived &&
+    requireSeatedSession &&
+    customerSession !== null &&
+    !customerSession.seated;
 
   return (
     <li
@@ -448,6 +486,8 @@ function TableCard({
           ? "border-border opacity-65"
           : isPaused
           ? "border-warning/50 bg-warning/5"
+          : needsSeating
+          ? "border-info/50 bg-info/5"
           : isLive
           ? "border-success/40 hover:border-success/60"
           : "border-border hover:border-foreground/20"
@@ -581,10 +621,92 @@ function TableCard({
         </div>
       </div>
 
+      {customerSession && !isArchived && (
+        <CustomerSessionStrip
+          customerSession={customerSession}
+          requireSeatedSession={requireSeatedSession}
+          now={now}
+          onSeat={() => onSeat(customerSession.id)}
+          onBump={() => onBump(customerSession.id)}
+        />
+      )}
+
       {isLive && session && (
         <SessionStrip session={session} now={now} />
       )}
     </li>
+  );
+}
+
+/**
+ * Compact strip surfacing the customer's *visit* (customer_sessions row),
+ * distinct from the SessionStrip below which renders order-activity stats.
+ * Shows seated state, the elapsed time since scan, and the Seat / Bump
+ * actions when relevant. Hidden entirely when there's no active visit.
+ */
+function CustomerSessionStrip({
+  customerSession,
+  requireSeatedSession,
+  now,
+  onSeat,
+  onBump,
+}: {
+  customerSession: AdminCustomerSession;
+  requireSeatedSession: boolean;
+  now: number;
+  onSeat: () => Promise<void>;
+  onBump: () => Promise<void>;
+}) {
+  const elapsed = formatOpenAge(customerSession.createdAt, now);
+  const needsSeating = requireSeatedSession && !customerSession.seated;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-xl px-2.5 py-1.5",
+        needsSeating
+          ? "border border-info/40 bg-info/10"
+          : "bg-muted/40"
+      )}
+    >
+      <span
+        className={cn(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+          needsSeating ? "bg-info text-white" : "bg-foreground/10 text-foreground"
+        )}
+        aria-hidden="true"
+      >
+        <UserCheck className="h-3 w-3" strokeWidth={2.4} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold leading-tight">
+          {needsSeating ? "Waiting to be seated" : "Seated"}
+        </p>
+        <p className="text-[10px] text-muted-foreground">
+          scanned {elapsed} ago
+        </p>
+      </div>
+      {needsSeating ? (
+        <button
+          type="button"
+          onClick={onSeat}
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-info px-2.5 text-[11px] font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95"
+        >
+          <UserCheck aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+          Seat
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onBump}
+          aria-label="End this customer's session"
+          title="End this customer's session"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+        >
+          <LogOut aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
+        </button>
+      )}
+    </div>
   );
 }
 

@@ -14,6 +14,12 @@ export interface RestaurantSettings {
   openForOrders: boolean;
   requireCustomerName: boolean;
   defaultPrepMinutes: number;
+  /**
+   * When on, customer sessions start unseated and need an admin Seat
+   * action before orders can be placed. Off-by-default so existing
+   * venues keep the trust-by-default model.
+   */
+  requireSeatedSession: boolean;
   updatedAt: number;
 }
 
@@ -24,6 +30,7 @@ interface RestaurantSettingsRow {
   open_for_orders: boolean;
   require_customer_name: boolean;
   default_prep_minutes: number;
+  require_seated_session: boolean | null;
   updated_at: string;
 }
 
@@ -38,6 +45,7 @@ export const DEFAULT_RESTAURANT_SETTINGS: RestaurantSettings = {
   openForOrders: true,
   requireCustomerName: false,
   defaultPrepMinutes: 9,
+  requireSeatedSession: false,
   updatedAt: 0,
 };
 
@@ -48,6 +56,7 @@ function rowToSettings(row: RestaurantSettingsRow): RestaurantSettings {
     openForOrders: row.open_for_orders,
     requireCustomerName: row.require_customer_name,
     defaultPrepMinutes: row.default_prep_minutes,
+    requireSeatedSession: row.require_seated_session ?? false,
     updatedAt: new Date(row.updated_at).getTime(),
   };
 }
@@ -87,7 +96,7 @@ export function RestaurantSettingsProvider({
       const { data, error } = await supabase
         .from("restaurant_settings")
         .select(
-          "id, name, currency_symbol, open_for_orders, require_customer_name, default_prep_minutes, updated_at"
+          "id, name, currency_symbol, open_for_orders, require_customer_name, default_prep_minutes, require_seated_session, updated_at"
         )
         .eq("id", 1)
         .maybeSingle();

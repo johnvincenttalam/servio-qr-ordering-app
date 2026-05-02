@@ -43,6 +43,8 @@ export function useAdminSettings(): UseAdminSettingsReturn {
       payload.require_customer_name = next.requireCustomerName;
     if (next.defaultPrepMinutes !== undefined)
       payload.default_prep_minutes = next.defaultPrepMinutes;
+    if (next.requireSeatedSession !== undefined)
+      payload.require_seated_session = next.requireSeatedSession;
 
     const { error } = await supabase
       .from("restaurant_settings")

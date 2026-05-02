@@ -53,6 +53,7 @@ export default function SettingsPage() {
           <BehaviorSection
             requireCustomerName={settings.requireCustomerName}
             defaultPrepMinutes={settings.defaultPrepMinutes}
+            requireSeatedSession={settings.requireSeatedSession}
             onSave={(next) => update(next)}
           />
         </>
@@ -214,21 +215,27 @@ function IdentitySection({
 function BehaviorSection({
   requireCustomerName,
   defaultPrepMinutes,
+  requireSeatedSession,
   onSave,
 }: {
   requireCustomerName: boolean;
   defaultPrepMinutes: number;
+  requireSeatedSession: boolean;
   onSave: (next: SettingsUpdate) => Promise<void>;
 }) {
   const [draftRequire, setDraftRequire] = useState(requireCustomerName);
   const [draftPrep, setDraftPrep] = useState(defaultPrepMinutes);
+  const [draftSeated, setDraftSeated] = useState(requireSeatedSession);
   const [pending, setPending] = useState(false);
 
   useEffect(() => setDraftRequire(requireCustomerName), [requireCustomerName]);
   useEffect(() => setDraftPrep(defaultPrepMinutes), [defaultPrepMinutes]);
+  useEffect(() => setDraftSeated(requireSeatedSession), [requireSeatedSession]);
 
   const dirty =
-    draftRequire !== requireCustomerName || draftPrep !== defaultPrepMinutes;
+    draftRequire !== requireCustomerName ||
+    draftPrep !== defaultPrepMinutes ||
+    draftSeated !== requireSeatedSession;
   const valid =
     Number.isFinite(draftPrep) && draftPrep > 0 && draftPrep < 240;
 
@@ -239,6 +246,7 @@ function BehaviorSection({
       await onSave({
         requireCustomerName: draftRequire,
         defaultPrepMinutes: draftPrep,
+        requireSeatedSession: draftSeated,
       });
       toast.success("Order settings saved");
     } catch {
@@ -261,6 +269,12 @@ function BehaviorSection({
           onChange={setDraftRequire}
           title="Require customer name at checkout"
           description="When on, customers must enter a name before placing the order. Off makes it optional."
+        />
+        <ToggleRow
+          checked={draftSeated}
+          onChange={setDraftSeated}
+          title="Staff must seat each party before ordering"
+          description="When on, scanning the QR opens the menu but blocks the place-order step until a staff member taps Seat on that table. Helpful against off-premises abuse; adds a step to your service workflow."
         />
         <Field label="Default prep time (minutes)">
           <Input
