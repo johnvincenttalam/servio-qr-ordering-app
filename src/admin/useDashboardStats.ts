@@ -4,11 +4,13 @@ import {
   DEFAULT_DASHBOARD_STATS,
   fetchDashboard,
   type DashboardStats,
+  type HourlyPoint,
   type RecentOrder,
+  type ServiceLoad,
   type TopSeller,
 } from "@/services/dashboard";
 
-export type { DashboardStats, RecentOrder, TopSeller };
+export type { DashboardStats, HourlyPoint, RecentOrder, ServiceLoad, TopSeller };
 
 interface UseDashboardStatsReturn {
   stats: DashboardStats;

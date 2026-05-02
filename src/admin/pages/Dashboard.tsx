@@ -14,6 +14,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   useDashboardStats,
   type RecentOrder,
+  type ServiceLoad,
   type TopSeller,
 } from "../useDashboardStats";
 import { ADMIN_STATUS_LABEL, ADMIN_STATUS_PILL } from "../orderStatus";
@@ -86,6 +87,8 @@ export default function DashboardPage() {
           />
         </div>
       </div>
+
+      <ServiceLoadPanel load={stats.serviceLoad} isLoading={isLoading} />
     </div>
   );
 }
@@ -594,6 +597,111 @@ function TopSellerRow({
       </div>
     </li>
   );
+}
+
+/**
+ * Service load by hour. Bar-per-hour chart with the peak-hour bar
+ * tinted warning yellow so the operator can spot the busy window
+ * at a glance. Hour labels render every 3 hours below the bars to
+ * keep the chart breathable. Empty days collapse to a calm "no
+ * orders yet" line.
+ */
+function ServiceLoadPanel({
+  load,
+  isLoading,
+}: {
+  load: ServiceLoad;
+  isLoading: boolean;
+}) {
+  const hasData = load.peakCount > 0;
+  const peakLabel = load.peakHour !== null ? formatHour(load.peakHour) : null;
+
+  return (
+    <section className="rounded-3xl border border-border bg-card p-4">
+      <header className="flex items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-bold">Service load</h2>
+          {!isLoading && hasData && peakLabel && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Peak so far at{" "}
+              <span className="font-semibold text-foreground">{peakLabel}</span>{" "}
+              · {load.peakCount}{" "}
+              {load.peakCount === 1 ? "order" : "orders"}
+            </p>
+          )}
+        </div>
+        <span className="text-xs text-muted-foreground">By hour · today</span>
+      </header>
+
+      {isLoading ? (
+        <div className="mt-4 h-32 animate-pulse rounded-xl bg-muted/60" />
+      ) : !hasData ? (
+        <p className="mt-6 py-8 text-center text-sm text-muted-foreground">
+          No orders yet today.
+        </p>
+      ) : (
+        <ServiceLoadBars load={load} />
+      )}
+    </section>
+  );
+}
+
+function ServiceLoadBars({ load }: { load: ServiceLoad }) {
+  // Show every 3rd hour as an x-axis label so the row stays readable.
+  return (
+    <div className="mt-4">
+      <div className="flex h-28 items-end gap-px">
+        {load.hourly.map(({ hour, count }) => {
+          // Tiny minimum height (1px) on hours that did have at least
+          // one order keeps the visual signal that the hour was active,
+          // even when the count is dwarfed by the peak.
+          const heightPct =
+            load.peakCount > 0 ? (count / load.peakCount) * 100 : 0;
+          const isPeak = hour === load.peakHour && count > 0;
+          return (
+            <div
+              key={hour}
+              className="flex flex-1 flex-col justify-end"
+              title={`${formatHour(hour)}: ${count} ${count === 1 ? "order" : "orders"}`}
+            >
+              <div
+                className={cn(
+                  "rounded-t transition-all",
+                  isPeak ? "bg-warning" : "bg-foreground/25"
+                )}
+                style={{
+                  height:
+                    count === 0 ? "0px" : `max(2px, ${heightPct.toFixed(1)}%)`,
+                }}
+                aria-hidden
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1.5 flex items-center text-[10px] font-semibold text-muted-foreground">
+        {load.hourly.map(({ hour }) => (
+          <span key={hour} className="flex-1 text-center">
+            {hour % 3 === 0 ? formatHourShort(hour) : " "}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** "8 PM" / "12 AM" */
+function formatHour(hour: number): string {
+  const period = hour < 12 ? "AM" : "PM";
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h} ${period}`;
+}
+
+/** "8p" / "12a" — used for the chart's x-axis labels. */
+function formatHourShort(hour: number): string {
+  const period = hour < 12 ? "a" : "p";
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h}${period}`;
 }
 
 function RecentActivity({

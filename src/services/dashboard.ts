@@ -35,6 +35,28 @@ export interface DashboardStats {
    * the Today's orders + Today's revenue stat cards.
    */
   dailyHistory: DailyPoint[];
+  /**
+   * Today's hourly distribution — drives the Service load chart so
+   * staff can spot the busy / quiet windows for tomorrow's planning.
+   */
+  serviceLoad: ServiceLoad;
+}
+
+/**
+ * One hour's order count for today — always 24 entries (0..23), zero-
+ * filled for hours with no orders so the chart renders a complete
+ * day shape regardless of when service started.
+ */
+export interface HourlyPoint {
+  hour: number;
+  count: number;
+}
+
+export interface ServiceLoad {
+  hourly: HourlyPoint[];
+  /** Hour with the highest count today, or null if no orders yet. */
+  peakHour: number | null;
+  peakCount: number;
 }
 
 export interface TopSeller {
@@ -95,6 +117,11 @@ const EMPTY_STATS: DashboardStats = {
   topItem: null,
   topSellers: [],
   dailyHistory: [],
+  serviceLoad: {
+    hourly: Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 })),
+    peakHour: null,
+    peakCount: 0,
+  },
 };
 
 export const DEFAULT_DASHBOARD_STATS: DashboardStats = EMPTY_STATS;
@@ -117,6 +144,35 @@ function startOfNDaysAgoIso(days: number): string {
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - days);
   return d.toISOString();
+}
+
+/**
+ * Build today's hourly load distribution from the flat list of
+ * today's orders. Cancelled rows are excluded — service load is
+ * about kitchen pressure, and a cancelled order didn't actually
+ * land on the line.
+ */
+function buildServiceLoad(rows: OrderRow[]): ServiceLoad {
+  const hourly = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    count: 0,
+  }));
+  for (const row of rows) {
+    if (row.status === "cancelled") continue;
+    const h = new Date(row.created_at).getHours();
+    hourly[h].count += 1;
+  }
+
+  let peakHour: number | null = null;
+  let peakCount = 0;
+  for (const point of hourly) {
+    if (point.count > peakCount) {
+      peakCount = point.count;
+      peakHour = point.hour;
+    }
+  }
+
+  return { hourly, peakHour, peakCount };
 }
 
 /**
@@ -324,6 +380,7 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
       avgTicket,
       topItem,
       topSellers,
+      serviceLoad: buildServiceLoad(todayRows),
       dailyHistory: buildDailyHistory(
         (weekRes.data ?? []) as {
           created_at: string;
