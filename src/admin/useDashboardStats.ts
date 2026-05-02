@@ -3,6 +3,7 @@ import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import {
   DEFAULT_DASHBOARD_STATS,
   fetchDashboard,
+  type DashboardRange,
   type DashboardStats,
   type HourlyPoint,
   type RecentOrder,
@@ -10,7 +11,14 @@ import {
   type TopSeller,
 } from "@/services/dashboard";
 
-export type { DashboardStats, HourlyPoint, RecentOrder, ServiceLoad, TopSeller };
+export type {
+  DashboardRange,
+  DashboardStats,
+  HourlyPoint,
+  RecentOrder,
+  ServiceLoad,
+  TopSeller,
+};
 
 interface UseDashboardStatsReturn {
   stats: DashboardStats;
@@ -20,14 +28,22 @@ interface UseDashboardStatsReturn {
   refetch: () => Promise<void>;
 }
 
-export function useDashboardStats(): UseDashboardStatsReturn {
+/**
+ * Range determines the period window for the headline metrics
+ * (period totals, comparison delta, top sellers, avg prep / avg
+ * ticket). Service load + sparkline trail "today" / "last 7 days"
+ * regardless — they answer different questions.
+ */
+export function useDashboardStats(
+  range: DashboardRange = "today"
+): UseDashboardStatsReturn {
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_DASHBOARD_STATS);
   const [recent, setRecent] = useState<RecentOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
-    const result = await fetchDashboard();
+    const result = await fetchDashboard(range);
     if (result.error) {
       setError(result.error);
       return;
@@ -35,10 +51,11 @@ export function useDashboardStats(): UseDashboardStatsReturn {
     setError(null);
     setStats(result.stats);
     setRecent(result.recent);
-  }, []);
+  }, [range]);
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
     (async () => {
       await refetch();
       if (!cancelled) setIsLoading(false);

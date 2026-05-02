@@ -7,6 +7,8 @@
 import { supabase } from "@/lib/supabase";
 import type { OrderStatus } from "@/types";
 
+export type DashboardRange = "today" | "week" | "month";
+
 export interface DashboardStats {
   /** Total active orders right now — sum of the three breakdown buckets. */
   activeCount: number;
@@ -14,12 +16,14 @@ export interface DashboardStats {
   activeBreakdown: { pending: number; preparing: number; ready: number };
   /** Distinct tables currently holding at least one active order. */
   tablesLive: number;
-  todayCount: number;
-  todayRevenue: number;
+  /** Order count + revenue for the selected range (today / last 7d / last 30d). */
+  periodCount: number;
+  periodRevenue: number;
+  /** Order count + revenue for the matching previous-period window (delta comparison). */
+  previousPeriodCount: number;
+  previousPeriodRevenue: number;
   avgPrepMinutes: number | null;
-  yesterdayCount: number;
-  yesterdayRevenue: number;
-  /** todayRevenue / todayCount, or null if no orders yet today. */
+  /** periodRevenue / periodCount, or null if no orders in the period. */
   avgTicket: number | null;
   /** Best-selling line item across today's orders, by quantity. */
   topItem: { name: string; quantity: number } | null;
@@ -108,11 +112,11 @@ const EMPTY_STATS: DashboardStats = {
   activeCount: 0,
   activeBreakdown: { pending: 0, preparing: 0, ready: 0 },
   tablesLive: 0,
-  todayCount: 0,
-  todayRevenue: 0,
+  periodCount: 0,
+  periodRevenue: 0,
+  previousPeriodCount: 0,
+  previousPeriodRevenue: 0,
   avgPrepMinutes: null,
-  yesterdayCount: 0,
-  yesterdayRevenue: 0,
   avgTicket: null,
   topItem: null,
   topSellers: [],
@@ -132,18 +136,43 @@ function startOfTodayIso(): string {
   return d.toISOString();
 }
 
-function startOfYesterdayIso(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - 1);
-  return d.toISOString();
-}
-
 function startOfNDaysAgoIso(days: number): string {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - days);
   return d.toISOString();
+}
+
+interface RangeWindow {
+  /** Start of the current period (inclusive). */
+  currentStart: string;
+  /** Start of the comparison previous-period window (inclusive). */
+  previousStart: string;
+  /**
+   * End of the previous-period window — exactly equal to currentStart
+   * so the two windows tile perfectly with no overlap.
+   */
+  previousEnd: string;
+}
+
+/**
+ * Compute the {current, previous} ISO timestamps for a dashboard
+ * range. "today" compares against yesterday; "week" against the prior
+ * 7 days; "month" against the prior 30. All windows snap to local
+ * midnight so partial days don't muddy the deltas.
+ */
+function rangeWindow(range: DashboardRange): RangeWindow {
+  const days = range === "today" ? 1 : range === "week" ? 7 : 30;
+  const currentStart = new Date();
+  currentStart.setHours(0, 0, 0, 0);
+  currentStart.setDate(currentStart.getDate() - (days - 1));
+  const previousStart = new Date(currentStart);
+  previousStart.setDate(previousStart.getDate() - days);
+  return {
+    currentStart: currentStart.toISOString(),
+    previousStart: previousStart.toISOString(),
+    previousEnd: currentStart.toISOString(),
+  };
 }
 
 /**
@@ -229,20 +258,24 @@ export interface DashboardFetchResult {
 }
 
 /**
- * Fan out 5 concurrent queries (today's orders, yesterday's revenue,
- * active count, recent 5, today's items for top-seller), then
- * aggregate into the dashboard's view model. Single round trip to
- * Supabase per refetch.
+ * Fan out concurrent queries for the dashboard view model and aggregate
+ * client-side. Range determines the period window for the headline
+ * metrics (period count + revenue, comparison delta, top sellers,
+ * avg prep / avg ticket). Service load + 7-day sparkline are fixed
+ * "today" / "last 7 days" because they answer different questions.
  */
-export async function fetchDashboard(): Promise<DashboardFetchResult> {
+export async function fetchDashboard(
+  range: DashboardRange = "today"
+): Promise<DashboardFetchResult> {
+  const window = rangeWindow(range);
   const today = startOfTodayIso();
-  const yesterday = startOfYesterdayIso();
-  // 6 days back so the trailing-7 window includes today.
-  const weekStart = startOfNDaysAgoIso(6);
+  // Sparkline always trails the last 7 days so it shows recent
+  // momentum regardless of the selected range.
+  const sparkStart = startOfNDaysAgoIso(6);
 
   const [
-    todayRes,
-    yesterdayRes,
+    currentRes,
+    previousRes,
     activeRes,
     recentRes,
     topItemRes,
@@ -251,12 +284,12 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
       supabase
         .from("orders")
         .select("id, status, total, created_at, ready_at")
-        .gte("created_at", today),
+        .gte("created_at", window.currentStart),
       supabase
         .from("orders")
         .select("total")
-        .gte("created_at", yesterday)
-        .lt("created_at", today),
+        .gte("created_at", window.previousStart)
+        .lt("created_at", window.previousEnd),
       // Pull the active rows themselves (not just count) so we can
       // both bucket by status for the hero chips and dedupe table_ids
       // for the "X tables live" subtitle. Active set is small.
@@ -269,28 +302,28 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
         .select("id, table_id, status, total, customer_name, created_at")
         .order("created_at", { ascending: false })
         .limit(5),
-      // Inner-join order_items → orders so we can filter by today's
-      // orders in a single round trip and aggregate client-side.
-      // unit_price comes along so the top-sellers leaderboard can
+      // Inner-join order_items → orders so we can filter by the
+      // selected period in a single round trip and aggregate
+      // client-side. unit_price comes along so the leaderboard can
       // show revenue contribution alongside units sold.
       supabase
         .from("order_items")
         .select(
           "name, quantity, unit_price, orders!inner(created_at, status)"
         )
-        .gte("orders.created_at", today),
-      // 7-day history for the inline sparklines on Today's orders +
-      // Today's revenue. Status is included so we can drop cancelled
-      // rows from the daily totals.
+        .gte("orders.created_at", window.currentStart),
+      // Sparkline always trails the last 7 days regardless of range,
+      // since it shows recent momentum context — separate from the
+      // headline period totals.
       supabase
         .from("orders")
         .select("created_at, total, status")
-        .gte("created_at", weekStart),
+        .gte("created_at", sparkStart),
     ]);
 
   const firstError =
-    todayRes.error ||
-    yesterdayRes.error ||
+    currentRes.error ||
+    previousRes.error ||
     activeRes.error ||
     recentRes.error ||
     topItemRes.error ||
@@ -304,18 +337,21 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
     };
   }
 
-  const todayRows = (todayRes.data ?? []) as OrderRow[];
-  const todayRevenue = todayRows.reduce((sum, r) => sum + Number(r.total), 0);
-
-  const yesterdayRows = (yesterdayRes.data ?? []) as {
-    total: number | string;
-  }[];
-  const yesterdayRevenue = yesterdayRows.reduce(
+  const currentRows = (currentRes.data ?? []) as OrderRow[];
+  const periodRevenue = currentRows.reduce(
     (sum, r) => sum + Number(r.total),
     0
   );
 
-  const completed = todayRows.filter(
+  const previousRows = (previousRes.data ?? []) as {
+    total: number | string;
+  }[];
+  const previousPeriodRevenue = previousRows.reduce(
+    (sum, r) => sum + Number(r.total),
+    0
+  );
+
+  const completed = currentRows.filter(
     (r) => r.ready_at && r.status !== "cancelled"
   );
   const avgPrepMinutes =
@@ -328,7 +364,7 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
         }, 0) / completed.length;
 
   const avgTicket =
-    todayRows.length === 0 ? null : todayRevenue / todayRows.length;
+    currentRows.length === 0 ? null : periodRevenue / currentRows.length;
 
   // Aggregate today's order_items by name; ignore lines from cancelled
   // orders so a refunded item doesn't pad the leaderboard. Track both
@@ -367,20 +403,29 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
     liveTables.add(row.table_id);
   }
 
+  // Service load is always "today's hourly distribution" regardless
+  // of selected range — peak hours only make sense at day-of-week
+  // resolution. Filter the period rows down to today when range is
+  // wider than today.
+  const todayOnlyRows =
+    range === "today"
+      ? currentRows
+      : currentRows.filter((r) => r.created_at >= today);
+
   return {
     stats: {
       activeCount: activeRows.length,
       activeBreakdown,
       tablesLive: liveTables.size,
-      todayCount: todayRows.length,
-      todayRevenue,
+      periodCount: currentRows.length,
+      periodRevenue,
+      previousPeriodCount: previousRows.length,
+      previousPeriodRevenue,
       avgPrepMinutes,
-      yesterdayCount: yesterdayRows.length,
-      yesterdayRevenue,
       avgTicket,
       topItem,
       topSellers,
-      serviceLoad: buildServiceLoad(todayRows),
+      serviceLoad: buildServiceLoad(todayOnlyRows),
       dailyHistory: buildDailyHistory(
         (weekRes.data ?? []) as {
           created_at: string;

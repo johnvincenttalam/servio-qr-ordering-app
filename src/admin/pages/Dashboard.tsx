@@ -10,17 +10,47 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   useDashboardStats,
+  type DashboardRange,
   type RecentOrder,
   type ServiceLoad,
   type TopSeller,
 } from "../useDashboardStats";
 import { ADMIN_STATUS_LABEL, ADMIN_STATUS_PILL } from "../orderStatus";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { Sparkline } from "@/components/common/Sparkline";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/utils";
+
+type RangeLabels = {
+  /** Period possessive — slots into "Today's orders" / "Week's orders". */
+  possessive: string;
+  /** Subtext below the value with delta — "vs yesterday" / "vs last week". */
+  vs: string;
+};
+
+const RANGE_LABELS: Record<DashboardRange, RangeLabels> = {
+  today: { possessive: "Today's", vs: "vs yesterday" },
+  week: { possessive: "Week's", vs: "vs last week" },
+  month: { possessive: "Month's", vs: "vs last month" },
+};
+
+const RANGE_OPTIONS: readonly { id: DashboardRange; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "week", label: "Week" },
+  { id: "month", label: "Month" },
+];
+
+const RANGE_STORAGE_KEY = "servio.admin.dashboard.range";
+
+function loadRange(): DashboardRange {
+  if (typeof window === "undefined") return "today";
+  const stored = window.localStorage.getItem(RANGE_STORAGE_KEY);
+  return stored === "week" || stored === "month" ? stored : "today";
+}
 
 /**
  * Pull the first word from displayName, falling back to the email's
@@ -58,7 +88,12 @@ function formatDateEyebrow(now: Date): string {
 
 export default function DashboardPage() {
   const { user, displayName } = useAuth();
-  const { stats, recent, isLoading } = useDashboardStats();
+  const [range, setRange] = useState<DashboardRange>(loadRange);
+  const { stats, recent, isLoading } = useDashboardStats(range);
+
+  useEffect(() => {
+    window.localStorage.setItem(RANGE_STORAGE_KEY, range);
+  }, [range]);
 
   const firstName = firstNameFrom(displayName, user?.email);
 
@@ -69,9 +104,11 @@ export default function DashboardPage() {
         tablesLive={stats.tablesLive}
         activeCount={stats.activeCount}
         isLoading={isLoading}
+        range={range}
+        onRangeChange={setRange}
       />
 
-      <Stats isLoading={isLoading} stats={stats} />
+      <Stats isLoading={isLoading} stats={stats} range={range} />
 
       <div className="grid gap-3 lg:grid-cols-5">
         {/* Recent activity gets the wider slot — operators glance at it
@@ -98,11 +135,15 @@ function Header({
   tablesLive,
   activeCount,
   isLoading,
+  range,
+  onRangeChange,
 }: {
   firstName: string;
   tablesLive: number;
   activeCount: number;
   isLoading: boolean;
+  range: DashboardRange;
+  onRangeChange: (range: DashboardRange) => void;
 }) {
   const dateLabel = formatDateEyebrow(new Date());
   // Service is "running" whenever there's at least one live table —
@@ -111,50 +152,58 @@ function Header({
   const running = tablesLive > 0;
 
   return (
-    <header>
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Dashboard <span className="text-muted-foreground/60">·</span>{" "}
-        {dateLabel}
-      </p>
-      <h1 className="mt-1 text-3xl font-bold tracking-tight">
-        Welcome back, {firstName}.
-      </h1>
-      {!isLoading && (
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                running ? "bg-success" : "bg-muted-foreground/40"
-              )}
-              aria-hidden
-            />
-            {running ? "Service running" : "Service idle"}
-          </span>
-          {tablesLive > 0 && (
-            <>
-              <span aria-hidden>·</span>
-              <span>
-                <span className="font-semibold text-foreground">
-                  {tablesLive}
-                </span>{" "}
-                {tablesLive === 1 ? "table" : "tables"} live
-              </span>
-            </>
-          )}
-          {activeCount > 0 && (
-            <>
-              <span aria-hidden>·</span>
-              <span>
-                <span className="font-semibold text-foreground">
-                  {activeCount}
-                </span>{" "}
-                in the kitchen
-              </span>
-            </>
-          )}
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Dashboard <span className="text-muted-foreground/60">·</span>{" "}
+          {dateLabel}
         </p>
-      )}
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">
+          Welcome back, {firstName}.
+        </h1>
+        {!isLoading && (
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  running ? "bg-success" : "bg-muted-foreground/40"
+                )}
+                aria-hidden
+              />
+              {running ? "Service running" : "Service idle"}
+            </span>
+            {tablesLive > 0 && (
+              <>
+                <span aria-hidden>·</span>
+                <span>
+                  <span className="font-semibold text-foreground">
+                    {tablesLive}
+                  </span>{" "}
+                  {tablesLive === 1 ? "table" : "tables"} live
+                </span>
+              </>
+            )}
+            {activeCount > 0 && (
+              <>
+                <span aria-hidden>·</span>
+                <span>
+                  <span className="font-semibold text-foreground">
+                    {activeCount}
+                  </span>{" "}
+                  in the kitchen
+                </span>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+      <SegmentedControl
+        value={range}
+        onChange={onRangeChange}
+        options={RANGE_OPTIONS}
+        ariaLabel="Range"
+      />
     </header>
   );
 }
@@ -162,12 +211,28 @@ function Header({
 function Stats({
   isLoading,
   stats,
+  range,
 }: {
   isLoading: boolean;
   stats: ReturnType<typeof useDashboardStats>["stats"];
+  range: DashboardRange;
 }) {
-  const ordersDelta = computeDelta(stats.todayCount, stats.yesterdayCount);
-  const revenueDelta = computeDelta(stats.todayRevenue, stats.yesterdayRevenue);
+  const ordersDelta = computeDelta(
+    stats.periodCount,
+    stats.previousPeriodCount
+  );
+  const revenueDelta = computeDelta(
+    stats.periodRevenue,
+    stats.previousPeriodRevenue
+  );
+  const labels = RANGE_LABELS[range];
+  const periodWord = range === "today" ? "today" : range;
+  const avgTicketSubtext =
+    stats.avgTicket === null ? "No orders yet" : `Per order ${periodWord}`;
+  const topSellerSubtext =
+    isLoading || !stats.topItem
+      ? "No items sold yet"
+      : `${stats.topItem.quantity} sold ${periodWord}`;
 
   return (
     <section className="space-y-3">
@@ -179,20 +244,20 @@ function Stats({
         />
         <StatCard
           icon={Receipt}
-          label="Today's orders"
-          value={isLoading ? "—" : String(stats.todayCount)}
+          label={`${labels.possessive} orders`}
+          value={isLoading ? "—" : String(stats.periodCount)}
           delta={isLoading ? undefined : ordersDelta}
-          subtext="vs yesterday"
+          subtext={labels.vs}
           sparkline={
             isLoading ? undefined : stats.dailyHistory.map((d) => d.count)
           }
         />
         <StatCard
           icon={Wallet}
-          label="Today's revenue"
-          value={isLoading ? "—" : formatPrice(stats.todayRevenue)}
+          label={`${labels.possessive} revenue`}
+          value={isLoading ? "—" : formatPrice(stats.periodRevenue)}
           delta={isLoading ? undefined : revenueDelta}
-          subtext="vs yesterday"
+          subtext={labels.vs}
           tone="success"
           sparkline={
             isLoading ? undefined : stats.dailyHistory.map((d) => d.revenue)
@@ -211,17 +276,13 @@ function Stats({
               ? "—"
               : formatPrice(stats.avgTicket)
           }
-          subtext={stats.avgTicket === null ? "No orders yet" : "Per order today"}
+          subtext={avgTicketSubtext}
         />
         <StatCard
           icon={Star}
           label="Top seller"
           value={isLoading || !stats.topItem ? "—" : stats.topItem.name}
-          subtext={
-            isLoading || !stats.topItem
-              ? "No items sold yet"
-              : `${stats.topItem.quantity} sold today`
-          }
+          subtext={topSellerSubtext}
           compact
           tone="warning"
         />
