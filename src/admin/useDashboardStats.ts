@@ -5,9 +5,10 @@ import {
   fetchDashboard,
   type DashboardStats,
   type RecentOrder,
+  type TopSeller,
 } from "@/services/dashboard";
 
-export type { DashboardStats, RecentOrder };
+export type { DashboardStats, RecentOrder, TopSeller };
 
 interface UseDashboardStatsReturn {
   stats: DashboardStats;

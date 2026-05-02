@@ -23,6 +23,18 @@ export interface DashboardStats {
   avgTicket: number | null;
   /** Best-selling line item across today's orders, by quantity. */
   topItem: { name: string; quantity: number } | null;
+  /**
+   * Top 5 best-sellers across today's orders ranked by units sold,
+   * each with the revenue they contributed. Excludes lines from
+   * cancelled orders. Empty array if nothing's been sold today.
+   */
+  topSellers: TopSeller[];
+}
+
+export interface TopSeller {
+  name: string;
+  quantity: number;
+  revenue: number;
 }
 
 export interface RecentOrder {
@@ -47,6 +59,7 @@ interface OrderRow {
 interface TopItemRow {
   name: string;
   quantity: number;
+  unit_price: number | string;
   orders: { status: string } | { status: string }[];
 }
 
@@ -63,6 +76,7 @@ const EMPTY_STATS: DashboardStats = {
   yesterdayRevenue: 0,
   avgTicket: null,
   topItem: null,
+  topSellers: [],
 };
 
 export const DEFAULT_DASHBOARD_STATS: DashboardStats = EMPTY_STATS;
@@ -132,9 +146,13 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
         .limit(5),
       // Inner-join order_items → orders so we can filter by today's
       // orders in a single round trip and aggregate client-side.
+      // unit_price comes along so the top-sellers leaderboard can
+      // show revenue contribution alongside units sold.
       supabase
         .from("order_items")
-        .select("name, quantity, orders!inner(created_at, status)")
+        .select(
+          "name, quantity, unit_price, orders!inner(created_at, status)"
+        )
         .gte("orders.created_at", today),
     ]);
 
@@ -180,19 +198,27 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
     todayRows.length === 0 ? null : todayRevenue / todayRows.length;
 
   // Aggregate today's order_items by name; ignore lines from cancelled
-  // orders so a refunded item doesn't pad the leaderboard.
+  // orders so a refunded item doesn't pad the leaderboard. Track both
+  // units (for ranking) and revenue (so the leaderboard can show the
+  // money contribution per item).
   const itemRows = (topItemRes.data ?? []) as TopItemRow[];
-  const tally = new Map<string, number>();
+  const tally = new Map<string, { quantity: number; revenue: number }>();
   for (const row of itemRows) {
     const orderStatus = Array.isArray(row.orders)
       ? row.orders[0]?.status
       : row.orders?.status;
     if (orderStatus === "cancelled") continue;
-    tally.set(row.name, (tally.get(row.name) ?? 0) + row.quantity);
+    const existing = tally.get(row.name) ?? { quantity: 0, revenue: 0 };
+    existing.quantity += row.quantity;
+    existing.revenue += row.quantity * Number(row.unit_price);
+    tally.set(row.name, existing);
   }
-  const topEntry = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
-  const topItem = topEntry
-    ? { name: topEntry[0], quantity: topEntry[1] }
+  const topSellers = [...tally.entries()]
+    .map(([name, { quantity, revenue }]) => ({ name, quantity, revenue }))
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 5);
+  const topItem = topSellers[0]
+    ? { name: topSellers[0].name, quantity: topSellers[0].quantity }
     : null;
 
   // Bucket the active-order rows into status counts + distinct
@@ -220,6 +246,7 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
       yesterdayRevenue,
       avgTicket,
       topItem,
+      topSellers,
     },
     recent: ((recentRes.data ?? []) as OrderRow[]).map(rowToRecent),
     error: null,

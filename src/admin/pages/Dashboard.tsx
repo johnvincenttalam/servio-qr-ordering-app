@@ -11,7 +11,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
-import { useDashboardStats, type RecentOrder } from "../useDashboardStats";
+import {
+  useDashboardStats,
+  type RecentOrder,
+  type TopSeller,
+} from "../useDashboardStats";
 import { ADMIN_STATUS_LABEL, ADMIN_STATUS_PILL } from "../orderStatus";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/utils";
@@ -67,7 +71,20 @@ export default function DashboardPage() {
 
       <Stats isLoading={isLoading} stats={stats} />
 
-      <RecentActivity orders={recent} isLoading={isLoading} />
+      <div className="grid gap-3 lg:grid-cols-5">
+        {/* Recent activity gets the wider slot — operators glance at it
+            most often. The leaderboard panel is the secondary detail
+            column at lg+, stacked below on smaller widths. */}
+        <div className="lg:col-span-3">
+          <RecentActivity orders={recent} isLoading={isLoading} />
+        </div>
+        <div className="lg:col-span-2">
+          <TopSellersPanel
+            sellers={stats.topSellers}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -433,6 +450,113 @@ function DeltaPill({ delta }: { delta: Delta }) {
       <Icon className="h-3 w-3" strokeWidth={2.4} />
       {text}
     </span>
+  );
+}
+
+function TopSellersPanel({
+  sellers,
+  isLoading,
+}: {
+  sellers: TopSeller[];
+  isLoading: boolean;
+}) {
+  return (
+    <section className="h-full rounded-3xl border border-border bg-card p-4">
+      <header className="flex items-center justify-between">
+        <h2 className="text-sm font-bold">Top sellers</h2>
+        <span className="text-xs text-muted-foreground">Today · top 5</span>
+      </header>
+      <div className="mt-3">
+        {isLoading ? (
+          <ul className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <li key={i} className="flex items-center gap-3">
+                <div className="h-5 w-5 shrink-0 rounded-full bg-muted" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-2/3 rounded bg-muted" />
+                  <div className="h-2 w-full rounded-full bg-muted" />
+                </div>
+                <div className="h-3 w-12 rounded bg-muted" />
+              </li>
+            ))}
+          </ul>
+        ) : sellers.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No items sold yet today.
+          </p>
+        ) : (
+          <ol className="space-y-3">
+            {sellers.map((s, i) => (
+              <TopSellerRow
+                key={s.name}
+                rank={i + 1}
+                seller={s}
+                topQuantity={sellers[0].quantity}
+              />
+            ))}
+          </ol>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Row for the top-sellers leaderboard. The progress bar's width is
+ * relative to the leader's quantity so the visual ranking matches
+ * the numeric ranking — #1 is always full-width, #5 shrinks
+ * proportionally.
+ */
+function TopSellerRow({
+  rank,
+  seller,
+  topQuantity,
+}: {
+  rank: number;
+  seller: TopSeller;
+  topQuantity: number;
+}) {
+  const widthPct = topQuantity > 0
+    ? Math.max(8, (seller.quantity / topQuantity) * 100)
+    : 0;
+  return (
+    <li>
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums",
+            rank === 1
+              ? "bg-warning text-foreground"
+              : "bg-muted text-foreground/70"
+          )}
+        >
+          {rank}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight">
+            {seller.name}
+          </p>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                "h-full rounded-full",
+                rank === 1 ? "bg-warning" : "bg-foreground/40"
+              )}
+              style={{ width: `${widthPct}%` }}
+            />
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-xs font-bold tabular-nums leading-tight">
+            {seller.quantity}{" "}
+            <span className="font-medium text-muted-foreground">sold</span>
+          </p>
+          <p className="text-[10px] tabular-nums text-muted-foreground">
+            {formatPrice(seller.revenue)}
+          </p>
+        </div>
+      </div>
+    </li>
   );
 }
 
