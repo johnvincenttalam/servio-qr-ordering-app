@@ -17,6 +17,7 @@ import {
   type TopSeller,
 } from "../useDashboardStats";
 import { ADMIN_STATUS_LABEL, ADMIN_STATUS_PILL } from "../orderStatus";
+import { Sparkline } from "@/components/common/Sparkline";
 import { cn } from "@/lib/utils";
 import { formatPrice, formatRelative } from "@/utils";
 
@@ -179,6 +180,9 @@ function Stats({
           value={isLoading ? "—" : String(stats.todayCount)}
           delta={isLoading ? undefined : ordersDelta}
           subtext="vs yesterday"
+          sparkline={
+            isLoading ? undefined : stats.dailyHistory.map((d) => d.count)
+          }
         />
         <StatCard
           icon={Wallet}
@@ -187,6 +191,10 @@ function Stats({
           delta={isLoading ? undefined : revenueDelta}
           subtext="vs yesterday"
           tone="success"
+          sparkline={
+            isLoading ? undefined : stats.dailyHistory.map((d) => d.revenue)
+          }
+          sparklineTone="success"
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -370,6 +378,16 @@ const STAT_TONE: Record<StatTone, string> = {
   warning: "bg-warning/25 text-foreground",
 };
 
+// Stroke + fill colour pairs for the optional Sparkline at the bottom
+// of a StatCard. Chosen to harmonise with the icon tone — success bg
+// + success line, neutral bg + foreground line.
+const SPARK_TONE: Record<StatTone, { stroke: string; fill: string }> = {
+  neutral: { stroke: "stroke-foreground/70", fill: "fill-foreground/10" },
+  info: { stroke: "stroke-info", fill: "fill-info/15" },
+  success: { stroke: "stroke-success", fill: "fill-success/15" },
+  warning: { stroke: "stroke-warning", fill: "fill-warning/20" },
+};
+
 function StatCard({
   icon: Icon,
   label,
@@ -379,6 +397,8 @@ function StatCard({
   compact = false,
   delta,
   tone = "neutral",
+  sparkline,
+  sparklineTone,
 }: {
   icon: LucideIcon;
   label: string;
@@ -388,11 +408,17 @@ function StatCard({
   compact?: boolean;
   delta?: Delta;
   tone?: StatTone;
+  /** When provided, renders a 7-day mini-chart at the bottom of the card. */
+  sparkline?: number[];
+  /** Override the sparkline's colour tone independently of the icon tone. */
+  sparklineTone?: StatTone;
 }) {
+  const sparkColour = SPARK_TONE[sparklineTone ?? tone];
+
   return (
     <div
       className={cn(
-        "rounded-3xl border bg-card p-4",
+        "flex h-full flex-col rounded-3xl border bg-card p-4",
         emphasis ? "border-foreground" : "border-border"
       )}
     >
@@ -422,6 +448,16 @@ function StatCard({
         {delta && <DeltaPill delta={delta} />}
         <p className="truncate text-xs text-muted-foreground">{subtext}</p>
       </div>
+      {sparkline && sparkline.length > 0 && (
+        <div className="mt-3 -mx-1">
+          <Sparkline
+            values={sparkline}
+            strokeClassName={sparkColour.stroke}
+            fillClassName={sparkColour.fill}
+            className="h-8"
+          />
+        </div>
+      )}
     </div>
   );
 }

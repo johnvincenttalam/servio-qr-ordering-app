@@ -29,11 +29,28 @@ export interface DashboardStats {
    * cancelled orders. Empty array if nothing's been sold today.
    */
   topSellers: TopSeller[];
+  /**
+   * Trailing 7-day sparkline data — daily order count + revenue totals
+   * including today, oldest first. Drives the inline sparklines on
+   * the Today's orders + Today's revenue stat cards.
+   */
+  dailyHistory: DailyPoint[];
 }
 
 export interface TopSeller {
   name: string;
   quantity: number;
+  revenue: number;
+}
+
+/**
+ * One day's totals — used to draw the 7-day sparklines on the
+ * Today's orders + Today's revenue cards.
+ */
+export interface DailyPoint {
+  /** Local-date key in YYYY-MM-DD form, ascending. */
+  date: string;
+  count: number;
   revenue: number;
 }
 
@@ -77,6 +94,7 @@ const EMPTY_STATS: DashboardStats = {
   avgTicket: null,
   topItem: null,
   topSellers: [],
+  dailyHistory: [],
 };
 
 export const DEFAULT_DASHBOARD_STATS: DashboardStats = EMPTY_STATS;
@@ -92,6 +110,49 @@ function startOfYesterdayIso(): string {
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - 1);
   return d.toISOString();
+}
+
+function startOfNDaysAgoIso(days: number): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
+
+/**
+ * Build a 7-day history array (oldest first, including today) from a
+ * flat list of order rows. Days with no orders show up as zero rather
+ * than gaps so the sparkline renders a continuous line.
+ */
+function buildDailyHistory(
+  rows: { created_at: string; total: number | string; status: string }[]
+): DailyPoint[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tally = new Map<string, { count: number; revenue: number }>();
+  for (const row of rows) {
+    if (row.status === "cancelled") continue;
+    const d = new Date(row.created_at);
+    d.setHours(0, 0, 0, 0);
+    const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const bucket = tally.get(key) ?? { count: 0, revenue: 0 };
+    bucket.count += 1;
+    bucket.revenue += Number(row.total);
+    tally.set(key, bucket);
+  }
+
+  // Walk back 6 days from today (7 total) so the array always has
+  // exactly 7 points, oldest first.
+  const points: DailyPoint[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const bucket = tally.get(key) ?? { count: 0, revenue: 0 };
+    points.push({ date: key, count: bucket.count, revenue: bucket.revenue });
+  }
+  return points;
 }
 
 function rowToRecent(row: OrderRow): RecentOrder {
@@ -120,9 +181,17 @@ export interface DashboardFetchResult {
 export async function fetchDashboard(): Promise<DashboardFetchResult> {
   const today = startOfTodayIso();
   const yesterday = startOfYesterdayIso();
+  // 6 days back so the trailing-7 window includes today.
+  const weekStart = startOfNDaysAgoIso(6);
 
-  const [todayRes, yesterdayRes, activeRes, recentRes, topItemRes] =
-    await Promise.all([
+  const [
+    todayRes,
+    yesterdayRes,
+    activeRes,
+    recentRes,
+    topItemRes,
+    weekRes,
+  ] = await Promise.all([
       supabase
         .from("orders")
         .select("id, status, total, created_at, ready_at")
@@ -154,6 +223,13 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
           "name, quantity, unit_price, orders!inner(created_at, status)"
         )
         .gte("orders.created_at", today),
+      // 7-day history for the inline sparklines on Today's orders +
+      // Today's revenue. Status is included so we can drop cancelled
+      // rows from the daily totals.
+      supabase
+        .from("orders")
+        .select("created_at, total, status")
+        .gte("created_at", weekStart),
     ]);
 
   const firstError =
@@ -161,7 +237,8 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
     yesterdayRes.error ||
     activeRes.error ||
     recentRes.error ||
-    topItemRes.error;
+    topItemRes.error ||
+    weekRes.error;
   if (firstError) {
     console.error("[services/dashboard] fetch failed:", firstError);
     return {
@@ -247,6 +324,13 @@ export async function fetchDashboard(): Promise<DashboardFetchResult> {
       avgTicket,
       topItem,
       topSellers,
+      dailyHistory: buildDailyHistory(
+        (weekRes.data ?? []) as {
+          created_at: string;
+          total: number | string;
+          status: string;
+        }[]
+      ),
     },
     recent: ((recentRes.data ?? []) as OrderRow[]).map(rowToRecent),
     error: null,
