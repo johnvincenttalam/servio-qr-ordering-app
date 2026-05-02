@@ -11,7 +11,7 @@ export default function HomePage() {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4 px-4 text-center animate-fade-up">
         <div className="flex h-24 w-24 items-center justify-center rounded-3xl border border-border bg-muted">
-          <AlertCircle className="h-12 w-12 text-foreground" strokeWidth={1.6} />
+          <AlertCircle aria-hidden="true" className="h-12 w-12 text-foreground" strokeWidth={1.6} />
         </div>
         <div className="space-y-1.5">
           <h1 className="text-3xl font-bold">Invalid Table</h1>
@@ -20,7 +20,7 @@ export default function HomePage() {
           </p>
         </div>
         <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-          <QrCode className="h-3.5 w-3.5" />
+          <QrCode aria-hidden="true" className="h-3.5 w-3.5" />
           Scan the QR code on your table to continue
         </p>
       </div>

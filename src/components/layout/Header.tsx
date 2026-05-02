@@ -60,7 +60,7 @@ export function Header() {
               aria-label="Call waiter"
               title="Call waiter"
             >
-              <Bell className="h-5 w-5" strokeWidth={2.2} />
+              <Bell aria-hidden="true" className="h-5 w-5" strokeWidth={2.2} />
             </button>
           )}
           {hasHistory && (
@@ -70,7 +70,7 @@ export function Header() {
               aria-label="Past orders"
               title="Past orders"
             >
-              <HistoryIcon className="h-5 w-5" strokeWidth={2.2} />
+              <HistoryIcon aria-hidden="true" className="h-5 w-5" strokeWidth={2.2} />
             </button>
           )}
           <button
@@ -79,7 +79,7 @@ export function Header() {
             className="relative flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
             aria-label={`Cart with ${itemCount} items`}
           >
-            <ShoppingCart className="h-5 w-5" strokeWidth={2.2} />
+            <ShoppingCart aria-hidden="true" className="h-5 w-5" strokeWidth={2.2} />
             {itemCount > 0 && (
               <span
                 key={itemCount}

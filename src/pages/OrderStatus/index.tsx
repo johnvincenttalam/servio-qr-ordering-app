@@ -104,7 +104,7 @@ export default function OrderStatusPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-border bg-muted">
-          <UtensilsCrossed className="h-9 w-9 text-muted-foreground" />
+          <UtensilsCrossed aria-hidden="true" className="h-9 w-9 text-muted-foreground" />
         </div>
         <h2 className="text-xl font-bold">No Active Order</h2>
         <p className="text-sm text-muted-foreground">
@@ -149,7 +149,7 @@ export default function OrderStatusPage() {
 
         <section className="rounded-3xl bg-card p-7 text-center text-foreground animate-fade-up">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-success text-white">
-            <CheckCircle2 className="h-10 w-10" strokeWidth={2.2} />
+            <CheckCircle2 aria-hidden="true" className="h-10 w-10" strokeWidth={2.2} />
           </div>
           <span className="mt-4 inline-block rounded-full bg-card px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Order #{order.id}
@@ -161,7 +161,7 @@ export default function OrderStatusPage() {
             Your order has been served. Thanks for ordering with {settings.name}!
           </p>
           <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-semibold text-foreground">
-            <Heart className="h-3 w-3 text-destructive" strokeWidth={2.4} />
+            <Heart aria-hidden="true" className="h-3 w-3 text-destructive" strokeWidth={2.4} />
             We hope to see you again
           </p>
         </section>
@@ -173,7 +173,7 @@ export default function OrderStatusPage() {
         >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-              <Bell className="h-4 w-4" strokeWidth={2.4} />
+              <Bell aria-hidden="true" className="h-4 w-4" strokeWidth={2.4} />
             </div>
             <div>
               <p className="text-sm font-semibold leading-tight">Need help?</p>
@@ -183,6 +183,7 @@ export default function OrderStatusPage() {
             </div>
           </div>
           <ChevronRight
+            aria-hidden="true"
             className="h-4 w-4 shrink-0 text-muted-foreground"
             strokeWidth={2.2}
           />
@@ -192,7 +193,7 @@ export default function OrderStatusPage() {
           onClick={() => navigate("/menu")}
           className="flex w-full items-center justify-center gap-1.5 rounded-full bg-foreground py-4 text-base font-semibold text-background transition-transform hover:scale-[1.01] active:scale-[0.98]"
         >
-          <Sparkles className="h-4 w-4" strokeWidth={2.4} />
+          <Sparkles aria-hidden="true" className="h-4 w-4" strokeWidth={2.4} />
           Order something else
         </button>
 
@@ -247,7 +248,7 @@ export default function OrderStatusPage() {
             </p>
             {isActive && etaMinutes !== null && (
               <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1 text-xs font-semibold text-background">
-                <Clock className="h-3 w-3" strokeWidth={2.4} />
+                <Clock aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
                 Usually ready in {formatEtaRange(etaMinutes)}
               </p>
             )}
@@ -281,7 +282,7 @@ export default function OrderStatusPage() {
                     )}
                   >
                     {isComplete ? (
-                      <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
+                      <CheckCircle2 aria-hidden="true" className="h-4 w-4" strokeWidth={2.5} />
                     ) : (
                       i + 1
                     )}
@@ -410,7 +411,7 @@ export default function OrderStatusPage() {
         onClick={() => navigate("/menu")}
         className="flex w-full items-center justify-center gap-1.5 rounded-full bg-foreground py-4 text-base font-semibold text-background transition-transform hover:scale-[1.01] active:scale-[0.98]"
       >
-        <Sparkles className="h-4 w-4" strokeWidth={2.4} />
+        <Sparkles aria-hidden="true" className="h-4 w-4" strokeWidth={2.4} />
         {isReady ? "Order something else" : "Add to your tab"}
       </button>
 

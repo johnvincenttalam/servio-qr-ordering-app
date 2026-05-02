@@ -128,7 +128,7 @@ export default function CheckoutPage() {
             htmlFor="name"
             className="flex items-center gap-2 text-sm font-semibold"
           >
-            <User className="h-4 w-4 text-muted-foreground" />
+            <User aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
             Name{" "}
             <span className="font-medium text-muted-foreground">
               {nameRequired ? "(required)" : "(optional)"}
@@ -148,7 +148,7 @@ export default function CheckoutPage() {
             htmlFor="notes"
             className="flex items-center gap-2 text-sm font-semibold"
           >
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            <MessageSquare aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
             Special Instructions{" "}
             <span className="font-medium text-muted-foreground">(optional)</span>
           </label>
@@ -165,7 +165,7 @@ export default function CheckoutPage() {
 
       <section className="rounded-3xl border border-border bg-card p-4 animate-fade-up">
         <div className="mb-3 flex items-center gap-2">
-          <Receipt className="h-4 w-4 text-muted-foreground" />
+          <Receipt aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
           <h3 className="font-semibold">Order Summary</h3>
         </div>
         <CartSummary items={cart} total={total} />
@@ -175,13 +175,14 @@ export default function CheckoutPage() {
         <div className="mx-auto max-w-md sm:max-w-2xl lg:max-w-3xl border-t border-border bg-background p-4 pointer-events-auto">
           {closed && (
             <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-3 py-1.5 text-xs font-semibold text-foreground">
-              <Lock className="h-3 w-3" strokeWidth={2.4} />
+              <Lock aria-hidden="true" className="h-3 w-3" strokeWidth={2.4} />
               We&apos;re not taking orders right now
             </p>
           )}
           <button
             onClick={handlePlaceOrder}
             disabled={!canSubmit}
+            aria-busy={isSubmitting || undefined}
             className="group flex w-full items-center justify-between rounded-full bg-foreground px-5 py-4 text-background transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
           >
             <span className="text-sm font-semibold">
@@ -196,7 +197,7 @@ export default function CheckoutPage() {
             <span className="flex items-center gap-2">
               <span className="text-base font-bold">{formatPrice(total)}</span>
               {!isSubmitting && (
-                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                <ChevronRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               )}
             </span>
           </button>

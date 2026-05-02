@@ -94,7 +94,7 @@ export default function MenuPage() {
       {!settings.openForOrders && (
         <div className="flex items-start gap-2.5 rounded-2xl border border-warning/40 bg-warning/15 p-3 animate-fade-up">
           <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-warning/40">
-            <Lock className="h-3.5 w-3.5 text-foreground" strokeWidth={2.4} />
+            <Lock aria-hidden="true" className="h-3.5 w-3.5 text-foreground" strokeWidth={2.4} />
           </span>
           <div className="text-sm">
             <p className="font-bold leading-tight">We&apos;re not taking orders right now</p>

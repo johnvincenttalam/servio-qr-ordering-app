@@ -61,12 +61,16 @@ export function CartItemRow({
               aria-label={isLast ? `Remove ${item.name}` : "Decrease quantity"}
             >
               {isLast ? (
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
               ) : (
-                <Minus className="h-3.5 w-3.5" />
+                <Minus aria-hidden="true" className="h-3.5 w-3.5" />
               )}
             </button>
-            <span className="w-6 text-center text-sm font-semibold">
+            <span
+              className="w-6 text-center text-sm font-semibold"
+              aria-live="polite"
+              aria-label={`Quantity ${item.quantity}`}
+            >
               {item.quantity}
             </span>
             <button
@@ -74,7 +78,7 @@ export function CartItemRow({
               className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background transition-all hover:scale-110 active:scale-90"
               aria-label="Increase quantity"
             >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+              <Plus aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
             </button>
           </div>
           <span className="text-sm font-bold text-foreground">

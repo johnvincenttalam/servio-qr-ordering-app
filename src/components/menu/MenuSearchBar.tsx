@@ -9,15 +9,17 @@ export function MenuSearchBar({ value, onChange }: MenuSearchBarProps) {
   return (
     <div className="relative">
       <Search
+        aria-hidden="true"
         className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
         strokeWidth={2.2}
       />
       <input
-        type="text"
+        type="search"
         inputMode="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search menu..."
+        aria-label="Search menu"
         className="h-11 w-full rounded-xl border border-border bg-muted pl-10 pr-10 text-sm font-medium text-foreground placeholder:text-muted-foreground transition-colors focus:border-foreground/40 focus:bg-card focus:outline-none"
       />
       {value && (

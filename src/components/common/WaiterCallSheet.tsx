@@ -124,6 +124,7 @@ export function WaiterCallSheet({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Add a note (optional)"
+              aria-label="Optional note for the staff"
               rows={2}
               maxLength={140}
               disabled={isSubmitting}
