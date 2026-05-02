@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/utils";
 import { AdminEmptyState } from "../components/AdminEmptyState";
+import { BlockedDevicesPanel } from "../components/BlockedDevicesPanel";
 import {
   useAdminActivity,
   type AuditEntityType,
@@ -137,6 +138,8 @@ export default function ActivityPage() {
           Who changed what, across menu, categories, banners, tables, and calls.
         </p>
       </header>
+
+      <BlockedDevicesPanel />
 
       <Filters filter={filter} onChange={setFilter} counts={counts} />
 

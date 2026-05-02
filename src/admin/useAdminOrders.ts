@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import {
   approveHeldOrder,
-  blockDevice,
   fetchAdminOrders,
   sendReadyPush,
   setOrderStatus,
@@ -11,6 +10,7 @@ import {
   type AdminOrderItem,
   type AdminOrderStatus,
 } from "@/services/orders";
+import { blockDevice } from "@/services/blocklist";
 
 export type { AdminOrder, AdminOrderItem, AdminOrderStatus };
 

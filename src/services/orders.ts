@@ -326,22 +326,6 @@ export function approveHeldOrder(id: string) {
     .eq("id", id);
 }
 
-/**
- * Add a device id to the blocklist. Future order inserts from this device
- * are hard-rejected by the check_order_abuse() trigger (errcode P0001).
- * Idempotent: device_id is the primary key, so a repeat insert is a no-op
- * we explicitly swallow.
- */
-export async function blockDevice(deviceId: string, reason?: string) {
-  const { error } = await supabase.from("device_blocklist").insert({
-    device_id: deviceId,
-    reason: reason ?? null,
-  });
-  if (error && error.code !== "23505") {
-    // 23505 = unique_violation — already blocked, treat as success.
-    throw error;
-  }
-}
 
 /**
  * Fire-and-forget push notification when an order moves to ready.
