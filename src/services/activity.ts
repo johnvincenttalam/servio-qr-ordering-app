@@ -10,7 +10,11 @@ export type AuditEntityType =
   | "category"
   | "banner"
   | "table"
-  | "waiter_call";
+  | "waiter_call"
+  /** Anti-abuse: held / approved / rejected lifecycle on an order. */
+  | "order_review"
+  /** Anti-abuse: device added to or removed from the blocklist. */
+  | "device_block";
 
 export type AuditAction = "INSERT" | "UPDATE" | "DELETE";
 

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   Bell,
   Image as ImageIcon,
   QrCode,
+  Shield,
   Tag,
   UtensilsCrossed,
   type LucideIcon,
@@ -51,6 +53,16 @@ const ENTITY_META: Record<
     icon: Bell,
     tone: "bg-success/15 text-success",
   },
+  order_review: {
+    label: "Held orders",
+    icon: AlertTriangle,
+    tone: "bg-warning/25 text-foreground",
+  },
+  device_block: {
+    label: "Blocks",
+    icon: Shield,
+    tone: "bg-destructive/15 text-destructive",
+  },
 };
 
 const ENTITY_TYPES: AuditEntityType[] = [
@@ -59,6 +71,8 @@ const ENTITY_TYPES: AuditEntityType[] = [
   "banner",
   "table",
   "waiter_call",
+  "order_review",
+  "device_block",
 ];
 
 type Filter = "all" | AuditEntityType;
@@ -85,6 +99,8 @@ export default function ActivityPage() {
       banner: 0,
       table: 0,
       waiter_call: 0,
+      order_review: 0,
+      device_block: 0,
     };
     // When a type filter is active the entries list is already
     // narrowed, so the counts row only shows the active bucket
