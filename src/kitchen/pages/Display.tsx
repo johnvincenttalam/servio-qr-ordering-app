@@ -16,6 +16,7 @@ import { BrandMark } from "@/components/common/BrandMark";
 import { WaiterCallsBanner } from "@/components/common/WaiterCallsBanner";
 import { playChime, primeChime } from "@/lib/chime";
 import { useKitchenOrders, type KitchenOrder } from "../useKitchenOrders";
+import { useKitchenModifications } from "../useKitchenModifications";
 import { OrderTicket } from "../components/OrderTicket";
 import type { OrderStatus } from "@/types";
 
@@ -47,6 +48,14 @@ export default function DisplayPage() {
     } catch {
       return false;
     }
+  });
+
+  // Subscribe to live order modifications so a comp / remove /
+  // qty-decrease while the cook is mid-prep surfaces as a toast plus
+  // a 4-second flash on the affected ticket.
+  const { flashingOrderIds } = useKitchenModifications({
+    orders,
+    soundEnabled,
   });
 
   const grouped = useMemo(() => {
@@ -184,6 +193,7 @@ export default function DisplayPage() {
                 icon={col.icon}
                 orders={grouped[col.id]}
                 onAdvance={advance}
+                flashingOrderIds={flashingOrderIds}
               />
             ))}
           </div>
@@ -228,12 +238,14 @@ function Column({
   icon: Icon,
   orders,
   onAdvance,
+  flashingOrderIds,
 }: {
   status: OrderStatus;
   label: string;
   icon: LucideIcon;
   orders: KitchenOrder[];
   onAdvance: (id: string, current: OrderStatus) => void;
+  flashingOrderIds: Set<string>;
 }) {
   const count = orders.length;
   const prevCount = useRef(count);
@@ -279,6 +291,7 @@ function Column({
               key={order.id}
               order={order}
               onAdvance={onAdvance}
+              flash={flashingOrderIds.has(order.id)}
             />
           ))
         )}

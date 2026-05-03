@@ -12,6 +12,12 @@ import type { KitchenOrder } from "../useKitchenOrders";
 interface OrderTicketProps {
   order: KitchenOrder;
   onAdvance: (id: string, current: OrderStatus) => void;
+  /**
+   * Drives a brief glow on the card when the order has just been
+   * modified (qty change, comp, remove, etc.) so the cook can spot
+   * the affected ticket without scanning every column.
+   */
+  flash?: boolean;
 }
 
 const ADVANCE_LABEL: Record<OrderStatus, string> = {
@@ -44,7 +50,7 @@ function useNow(intervalMs: number) {
   return now;
 }
 
-export function OrderTicket({ order, onAdvance }: OrderTicketProps) {
+export function OrderTicket({ order, onAdvance, flash }: OrderTicketProps) {
   const now = useNow(15000);
   const Icon = ORDER_STATUS_ICONS[order.status];
   const isReady = order.status === "ready";
@@ -73,7 +79,10 @@ export function OrderTicket({ order, onAdvance }: OrderTicketProps) {
         // Active cards age in via a thin coloured strip on the left edge
         // (a "thermometer") instead of a full destructive border.
         !isReady && isStale && "border-l-4 border-l-warning",
-        !isReady && isUrgent && "border-l-4 border-l-destructive"
+        !isReady && isUrgent && "border-l-4 border-l-destructive",
+        // Modified — short ring-glow on the card so the cook spots
+        // which ticket just changed (admin comp/remove/customer edit).
+        flash && "animate-ticket-flash"
       )}
     >
       <header className="flex items-start justify-between gap-3">

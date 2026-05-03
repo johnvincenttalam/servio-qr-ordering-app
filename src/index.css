@@ -176,6 +176,28 @@
     animation: cancel-stroke-draw 220ms 720ms cubic-bezier(0.65, 0, 0.45, 1) forwards;
   }
 
+  /*
+   * Kitchen ticket flash — when an order is modified (admin
+   * comp/remove, customer qty edit), the matching ticket card glows
+   * with an info-blue ring for ~3.5s so the cook spots which one
+   * changed. Two pulses with a brief settle in between, then a clean
+   * exit. info ring uses the brand info hue at ~50% opacity for
+   * visibility without overwhelming the surrounding cards.
+   */
+  @keyframes ticket-flash {
+    0%   { box-shadow: 0 0 0 0 transparent; }
+    15%  { box-shadow: 0 0 0 4px color-mix(in srgb, var(--info) 55%, transparent); }
+    35%  { box-shadow: 0 0 0 0 transparent; }
+    55%  { box-shadow: 0 0 0 4px color-mix(in srgb, var(--info) 40%, transparent); }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .animate-ticket-flash {
+    animation: ticket-flash 3.5s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-ticket-flash { animation: none; }
+  }
+
   @keyframes cancel-wobble {
     0%, 100% { transform: rotate(0deg); }
     25%      { transform: rotate(-4deg); }
