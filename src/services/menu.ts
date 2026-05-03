@@ -264,6 +264,19 @@ export function setMenuItemPrice(id: string, price: number) {
 }
 
 /**
+ * One-shot top-pick toggle. The editor sets this alongside other
+ * fields, but the admin grid/list also exposes it via a kebab so
+ * staff can flip an item to/from the customer "Top picks" strip
+ * without opening the full editor.
+ */
+export function setMenuItemTopPick(id: string, topPick: boolean) {
+  return supabase
+    .from("menu_items")
+    .update({ top_pick: topPick })
+    .eq("id", id);
+}
+
+/**
  * Full update from a MenuItemDraft. Throws on error so callers can
  * surface validation messages on the editor form.
  */

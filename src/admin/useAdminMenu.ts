@@ -9,6 +9,7 @@ import {
   setMenuItemInStock,
   setMenuItemsInStock,
   setMenuItemPrice,
+  setMenuItemTopPick,
   type MenuItemDraft,
 } from "@/services/menu";
 import { formatPrice } from "@/utils";
@@ -26,6 +27,8 @@ interface UseAdminMenuReturn {
   setInStock: (id: string, inStock: boolean) => Promise<void>;
   setInStockBulk: (ids: string[], inStock: boolean) => Promise<void>;
   setPrice: (id: string, price: number) => Promise<void>;
+  /** Toggle the "top pick" flag — surfaces in the customer Top Picks strip. */
+  setTopPick: (id: string, value: boolean) => Promise<void>;
   saveItem: (id: string, draft: MenuItemDraft) => Promise<void>;
   createItem: (draft: MenuItemDraft) => Promise<void>;
   archiveItem: (id: string) => Promise<void>;
@@ -206,6 +209,35 @@ export function useAdminMenu(): UseAdminMenuReturn {
     [items, refetch]
   );
 
+  const setTopPick = useCallback(
+    async (id: string, value: boolean) => {
+      const name = items.find((it) => it.id === id)?.name ?? "Item";
+      await optimisticUpdate({
+        apply: () =>
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === id ? { ...item, topPick: value } : item
+            )
+          ),
+        undo: () =>
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === id ? { ...item, topPick: !value } : item
+            )
+          ),
+        request: () => setMenuItemTopPick(id, value),
+        undoRequest: () => setMenuItemTopPick(id, !value),
+        refetch,
+        errorMessage: "Couldn't update top pick — try again",
+        successMessage: value
+          ? `${name} featured as top pick`
+          : `${name} unfeatured from top picks`,
+        logTag: "[admin/menu] top pick",
+      });
+    },
+    [items, refetch]
+  );
+
   const saveItem = useCallback(
     async (id: string, draft: MenuItemDraft) => {
       await saveMenuItem(id, draft);
@@ -242,6 +274,7 @@ export function useAdminMenu(): UseAdminMenuReturn {
     setInStock,
     setInStockBulk,
     setPrice,
+    setTopPick,
     saveItem,
     createItem,
     archiveItem,

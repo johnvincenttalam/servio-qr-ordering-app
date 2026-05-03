@@ -2,15 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles,
   AlertCircle,
+  Archive,
   Check,
   CheckSquare,
   LayoutGrid,
   List,
+  MoreVertical,
   Pencil,
   Plus,
   Search,
+  Star,
+  StarOff,
   X,
+  XCircle,
 } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
 import { useAdminMenu } from "../useAdminMenu";
 import { AdminEmptyState } from "../components/AdminEmptyState";
@@ -38,6 +44,7 @@ export default function MenuManagerPage() {
     setInStock,
     setInStockBulk,
     setPrice,
+    setTopPick,
     saveItem,
     createItem,
     archiveItem,
@@ -274,6 +281,8 @@ export default function MenuManagerPage() {
                   onToggleSelect={() => toggleSelected(item.id)}
                   onToggleStock={(value) => setInStock(item.id, value)}
                   onSetPrice={(price) => setPrice(item.id, price)}
+                  onToggleTopPick={(value) => setTopPick(item.id, value)}
+                  onArchive={() => archiveItem(item.id)}
                   onEdit={() => setDrawer({ mode: "edit", item })}
                 />
               ))}
@@ -290,6 +299,8 @@ export default function MenuManagerPage() {
                   onToggleSelect={() => toggleSelected(item.id)}
                   onToggleStock={(value) => setInStock(item.id, value)}
                   onSetPrice={(price) => setPrice(item.id, price)}
+                  onToggleTopPick={(value) => setTopPick(item.id, value)}
+                  onArchive={() => archiveItem(item.id)}
                   onEdit={() => setDrawer({ mode: "edit", item })}
                 />
               ))}
@@ -467,6 +478,19 @@ function CategoryFilters({
   );
 }
 
+interface MenuItemRowProps {
+  item: MenuItem;
+  categoryLabel: string;
+  showCategory: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  onToggleStock: (value: boolean) => void;
+  onSetPrice: (price: number) => Promise<void>;
+  onToggleTopPick: (value: boolean) => void;
+  onArchive: () => void;
+  onEdit: () => void;
+}
+
 function MenuItemRow({
   item,
   categoryLabel,
@@ -475,26 +499,23 @@ function MenuItemRow({
   onToggleSelect,
   onToggleStock,
   onSetPrice,
+  onToggleTopPick,
+  onArchive,
   onEdit,
-}: {
-  item: MenuItem;
-  categoryLabel: string;
-  showCategory: boolean;
-  isSelected: boolean;
-  onToggleSelect: () => void;
-  onToggleStock: (value: boolean) => void;
-  onSetPrice: (price: number) => Promise<void>;
-  onEdit: () => void;
-}) {
+}: MenuItemRowProps) {
   const inStock = item.inStock !== false;
   const hasOptions = (item.options?.length ?? 0) > 0;
 
   return (
     <li
       className={cn(
-        "flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition-colors hover:border-foreground/20",
-        !inStock && "border-l-4 border-l-destructive",
-        isSelected && "border-foreground/60 bg-muted/40 ring-1 ring-foreground/20"
+        "flex items-center gap-3 rounded-2xl border bg-card p-2.5 transition-colors",
+        !inStock
+          ? "border-destructive/40 hover:border-destructive/60"
+          : item.topPick
+          ? "border-warning/40 hover:border-warning/60"
+          : "border-border hover:border-foreground/20",
+        isSelected && "ring-1 ring-foreground/20 bg-muted/40"
       )}
     >
       <SelectCheckbox selected={isSelected} onChange={onToggleSelect} />
@@ -507,25 +528,14 @@ function MenuItemRow({
         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
           <img
             src={item.image}
-            alt={item.name}
+            alt=""
+            aria-hidden="true"
             loading="lazy"
             className={cn(
               "h-full w-full object-cover",
               !inStock && "grayscale opacity-60"
             )}
           />
-          {item.topPick && (
-            <span
-              className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-warning"
-              title="Top pick"
-              aria-label="Top pick"
-            >
-              <Sparkles
-                className="h-2 w-2 text-foreground"
-                strokeWidth={2.5}
-              />
-            </span>
-          )}
         </div>
 
         <div className={cn("min-w-0 flex-1", !inStock && "opacity-70")}>
@@ -544,14 +554,11 @@ function MenuItemRow({
                 {item.options!.length === 1 ? "option" : "options"}
               </span>
             )}
-            {!inStock && (
-              <span className="shrink-0 font-semibold text-destructive">
-                Sold out
-              </span>
-            )}
           </div>
         </div>
       </button>
+
+      <MenuItemPills item={item} />
 
       <div className="w-20 shrink-0 text-right text-sm font-semibold">
         <InlinePriceEdit value={item.price} onSave={onSetPrice} />
@@ -563,15 +570,13 @@ function MenuItemRow({
         itemName={item.name}
       />
 
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Edit"
-        aria-label={`Edit ${item.name}`}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
-      >
-        <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
-      </button>
+      <MenuItemKebab
+        itemName={item.name}
+        topPick={!!item.topPick}
+        onEdit={onEdit}
+        onToggleTopPick={onToggleTopPick}
+        onArchive={onArchive}
+      />
     </li>
   );
 }
@@ -769,26 +774,23 @@ function MenuItemCard({
   onToggleSelect,
   onToggleStock,
   onSetPrice,
+  onToggleTopPick,
+  onArchive,
   onEdit,
-}: {
-  item: MenuItem;
-  categoryLabel: string;
-  showCategory: boolean;
-  isSelected: boolean;
-  onToggleSelect: () => void;
-  onToggleStock: (value: boolean) => void;
-  onSetPrice: (price: number) => Promise<void>;
-  onEdit: () => void;
-}) {
+}: MenuItemRowProps) {
   const inStock = item.inStock !== false;
   const hasOptions = (item.options?.length ?? 0) > 0;
 
   return (
     <div
       className={cn(
-        "group/card relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-foreground/20",
-        !inStock && "border-l-4 border-l-destructive",
-        isSelected && "border-foreground/60 ring-1 ring-foreground/20"
+        "group/card relative flex flex-col overflow-hidden rounded-2xl border bg-card transition-colors",
+        !inStock
+          ? "border-destructive/40 hover:border-destructive/60"
+          : item.topPick
+          ? "border-warning/40 hover:border-warning/60"
+          : "border-border hover:border-foreground/20",
+        isSelected && "ring-1 ring-foreground/20"
       )}
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
@@ -800,7 +802,8 @@ function MenuItemCard({
         >
           <img
             src={item.image}
-            alt={item.name}
+            alt=""
+            aria-hidden="true"
             loading="lazy"
             className={cn(
               "h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105",
@@ -808,29 +811,19 @@ function MenuItemCard({
             )}
           />
         </button>
-        {/* The checkbox sits as an overlay sibling of the image button so
-            we don't end up with nested <button> elements. z-10 keeps it
-            above the image; stopPropagation isn't needed because the
-            buttons aren't ancestors of each other. */}
+        {/* Checkbox is an overlay sibling of the image button so we don't
+            end up with nested <button> elements. z-10 keeps it on top. */}
         <SelectCheckbox
           selected={isSelected}
           onChange={onToggleSelect}
           className="absolute left-2 top-2 z-10"
         />
-        {item.topPick && (
-          <span
-            className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold text-foreground"
-            title="Top pick"
-          >
-            <Sparkles className="h-2.5 w-2.5" strokeWidth={2.5} />
-            Top pick
-          </span>
-        )}
-        {!inStock && (
-          <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-            Sold out
-          </span>
-        )}
+        {/* State pills float over the image — same vocabulary as the
+            row's <MenuItemPills>. Pointer-events:none so the image
+            below stays clickable for edit. */}
+        <div className="pointer-events-none absolute bottom-2 right-2 flex flex-wrap justify-end gap-1">
+          <MenuItemPills item={item} />
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
@@ -861,25 +854,113 @@ function MenuItemCard({
             onSave={onSetPrice}
             className="text-base font-bold"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <StockSwitch
               inStock={inStock}
               onChange={onToggleStock}
               itemName={item.name}
             />
-            <button
-              type="button"
-              onClick={onEdit}
-              title="Edit"
-              aria-label={`Edit ${item.name}`}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
-            >
-              <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
-            </button>
+            <MenuItemKebab
+              itemName={item.name}
+              topPick={!!item.topPick}
+              onEdit={onEdit}
+              onToggleTopPick={onToggleTopPick}
+              onArchive={onArchive}
+            />
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Shared state-pill cluster — Sold out + Top pick. Both can apply to
+ * a single item; sold out renders first because it's the more
+ * actionable state. Pointer-events:none on the cluster (when
+ * positioned over the image) so the parent button stays clickable.
+ */
+function MenuItemPills({ item }: { item: MenuItem }) {
+  const inStock = item.inStock !== false;
+  if (inStock && !item.topPick) return null;
+  return (
+    <>
+      {!inStock && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+          <XCircle aria-hidden="true" className="h-2.5 w-2.5" strokeWidth={2.5} />
+          Sold out
+        </span>
+      )}
+      {item.topPick && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-foreground">
+          <Sparkles aria-hidden="true" className="h-2.5 w-2.5" strokeWidth={2.5} />
+          Top pick
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Per-item overflow menu — holds the lower-frequency actions (Edit,
+ * Toggle top pick, Archive) so the inline action row stays focused
+ * on the high-frequency stock toggle and price edit. Toggle top pick
+ * here is a real win: previously the only path to flip top_pick was
+ * through the full editor modal, even though it's a one-bit setting.
+ */
+function MenuItemKebab({
+  itemName,
+  topPick,
+  onEdit,
+  onToggleTopPick,
+  onArchive,
+}: {
+  itemName: string;
+  topPick: boolean;
+  onEdit: () => void;
+  onToggleTopPick: (value: boolean) => void;
+  onArchive: () => void;
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        aria-label={`More actions for ${itemName}`}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/30 focus-visible:outline-offset-2"
+      >
+        <MoreVertical aria-hidden="true" className="h-4 w-4" strokeWidth={2.2} />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner sideOffset={4} align="end" className="z-[60]">
+          <Menu.Popup className="min-w-[180px] origin-[var(--transform-origin)] rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+            <Menu.Item
+              onClick={onEdit}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground outline-none transition-colors data-highlighted:bg-muted"
+            >
+              <Pencil aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Edit
+            </Menu.Item>
+            <Menu.Item
+              onClick={() => onToggleTopPick(!topPick)}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground outline-none transition-colors data-highlighted:bg-muted"
+            >
+              {topPick ? (
+                <StarOff aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              ) : (
+                <Star aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              )}
+              {topPick ? "Unfeature top pick" : "Feature as top pick"}
+            </Menu.Item>
+            <Menu.Item
+              onClick={onArchive}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-destructive outline-none transition-colors data-highlighted:bg-destructive/10"
+            >
+              <Archive aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Archive
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
