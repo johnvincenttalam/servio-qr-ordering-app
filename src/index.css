@@ -181,6 +181,41 @@
     animation: ready-glow 2.4s ease-in-out 1.4s infinite;
   }
 
+  /*
+   * Bell ring — small attention-grabber on the "Notify me when ready"
+   * button. Rotates the icon back and forth like a ringing handbell,
+   * then settles for a beat before ringing again. Pivots from the top
+   * (where the bell handle would be) so the swing reads as physical
+   * rather than a spin around centre.
+   *
+   * Cycle: ring (0–10%) → quiet (10–50%) → ring (50–60%) → long quiet
+   * (60–100%). Total 3.6s.
+   */
+  @keyframes bell-ring {
+    0%   { transform: rotate(0deg); }
+    2%   { transform: rotate(-15deg); }
+    4%   { transform: rotate(15deg); }
+    6%   { transform: rotate(-10deg); }
+    8%   { transform: rotate(8deg); }
+    10%  { transform: rotate(0deg); }
+    50%  { transform: rotate(0deg); }
+    52%  { transform: rotate(-12deg); }
+    54%  { transform: rotate(12deg); }
+    56%  { transform: rotate(-8deg); }
+    58%  { transform: rotate(6deg); }
+    60%  { transform: rotate(0deg); }
+    100% { transform: rotate(0deg); }
+  }
+  .animate-bell-ring {
+    transform-origin: top center;
+    animation: bell-ring 3.6s ease-in-out infinite;
+  }
+  /* Honour the user's reduced-motion preference — the ring is
+     decorative; never animate when they've asked us not to. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-bell-ring { animation: none; }
+  }
+
   @keyframes fly-to-cart {
     0%   { transform: translate(0, 0) scale(1); opacity: 1; }
     25%  { transform: translate(calc(var(--dx) * 0.15), calc(var(--dy) * 0.15 - 36px)) scale(0.8); opacity: 0.95; }

@@ -16,6 +16,12 @@ import { useOpenStatus } from "@/hooks/useBusinessHours";
  */
 export function ClosedGuard({ children }: { children: ReactNode }) {
   const status = useOpenStatus();
+  // Hold the render while open status is still loading — without this,
+  // a refresh would flash /closed for a moment whenever the hardcoded
+  // defaults disagree with the real schedule. Once real data lands the
+  // status resolves to either "open" (render children) or one of the
+  // closed kinds (redirect).
+  if (status.kind === "loading") return <>{children}</>;
   if (status.kind !== "open") {
     return <Navigate to="/closed" replace />;
   }

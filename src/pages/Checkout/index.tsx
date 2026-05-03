@@ -210,6 +210,7 @@ export default function CheckoutPage() {
         open={placedOrderId !== null}
         orderId={placedOrderId}
         placedAt={placedAt}
+        items={cart}
         onView={handleViewOrder}
         onCancelled={handleCancelled}
       />

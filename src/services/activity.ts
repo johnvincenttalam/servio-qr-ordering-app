@@ -14,7 +14,9 @@ export type AuditEntityType =
   /** Anti-abuse: held / approved / rejected lifecycle on an order. */
   | "order_review"
   /** Anti-abuse: device added to or removed from the blocklist. */
-  | "device_block";
+  | "device_block"
+  /** Customer-initiated qty / removal edits within the post-submit window. */
+  | "order_modification";
 
 export type AuditAction = "INSERT" | "UPDATE" | "DELETE";
 

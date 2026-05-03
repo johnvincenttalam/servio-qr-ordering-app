@@ -524,7 +524,9 @@ function HoursSection({
   // sees with the human-readable next-open time so staff can verify
   // their schedule landed without scanning the QR themselves.
   const statusCopy =
-    status.kind === "open"
+    status.kind === "loading"
+      ? "Loading hours…"
+      : status.kind === "open"
       ? `Open per schedule · closes at ${status.closesAt.toLocaleTimeString(
           "en-US",
           {
@@ -541,7 +543,9 @@ function HoursSection({
       : "Closed — no upcoming open time configured";
 
   const statusTone =
-    status.kind === "open"
+    status.kind === "loading"
+      ? "border-border bg-muted/40 text-muted-foreground"
+      : status.kind === "open"
       ? "border-success/40 bg-success/10 text-foreground"
       : status.kind === "closed-override"
       ? "border-destructive/40 bg-destructive/10 text-foreground"

@@ -292,6 +292,85 @@ export async function submitOrder(params: {
 }
 
 /**
+ * Customer-side single-line edit inside the 60-second window. Calls
+ * modify_my_order_item which validates ownership, window, status,
+ * and the per-order edit cap server-side. New quantity must be 0
+ * (which removes the line) or strictly less than current — adds are
+ * not allowed by this RPC.
+ */
+export type ModifyOrderError =
+  | "ORDER_NOT_FOUND"
+  | "WRONG_DEVICE"
+  | "WINDOW_EXPIRED"
+  | "STATUS_LOCKED"
+  | "CAP_REACHED"
+  | "LINE_NOT_FOUND"
+  | "QTY_INVALID"
+  | "UNKNOWN";
+
+export type ModifyOrderResult =
+  | { ok: true; modificationsLeft: number }
+  | { ok: false; error: ModifyOrderError };
+
+const KNOWN_MODIFY_ERRORS: ReadonlySet<ModifyOrderError> = new Set([
+  "ORDER_NOT_FOUND",
+  "WRONG_DEVICE",
+  "WINDOW_EXPIRED",
+  "STATUS_LOCKED",
+  "CAP_REACHED",
+  "LINE_NOT_FOUND",
+  "QTY_INVALID",
+  "UNKNOWN",
+]);
+
+export async function modifyMyOrderItem(
+  orderId: string,
+  deviceId: string,
+  lineId: string,
+  newQuantity: number
+): Promise<ModifyOrderResult> {
+  const { data, error } = await supabase.rpc("modify_my_order_item", {
+    p_order_id: orderId,
+    p_device_id: deviceId,
+    p_line_id: lineId,
+    p_new_quantity: newQuantity,
+  });
+  if (error) {
+    console.warn("[services/orders] modify_my_order_item failed:", error);
+    return { ok: false, error: "UNKNOWN" };
+  }
+  const payload = data as
+    | { ok: boolean; error?: string; modifications_left?: number }
+    | null;
+  if (!payload || payload.ok !== true) {
+    const code =
+      payload?.error && KNOWN_MODIFY_ERRORS.has(payload.error as ModifyOrderError)
+        ? (payload.error as ModifyOrderError)
+        : "UNKNOWN";
+    return { ok: false, error: code };
+  }
+  return {
+    ok: true,
+    modificationsLeft: payload.modifications_left ?? 0,
+  };
+}
+
+/**
+ * Customer-friendly copy for each modify-order error. Centralised so
+ * inline banners and toasts read the same.
+ */
+export const MODIFY_ORDER_ERROR_COPY: Record<ModifyOrderError, string> = {
+  ORDER_NOT_FOUND: "Order not found.",
+  WRONG_DEVICE: "Only the device that placed this order can edit it.",
+  WINDOW_EXPIRED: "The edit window has closed — kitchen has the order.",
+  STATUS_LOCKED: "Kitchen is already preparing this — too late to edit.",
+  CAP_REACHED: "You've used up your edits on this order.",
+  LINE_NOT_FOUND: "That item isn't on the order.",
+  QTY_INVALID: "Can only decrease quantities.",
+  UNKNOWN: "Couldn't apply the change. Please try again.",
+};
+
+/**
  * Customer-side cancel inside the 30-second undo window. Calls the
  * cancel_my_order RPC which verifies device ownership + status='pending'
  * + within 30s of submitted_at server-side. Returns true if the cancel

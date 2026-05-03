@@ -84,10 +84,18 @@ export function useBusinessHours() {
  * override, last-call) into a live OpenStatus that re-evaluates every
  * minute. Customer-side ClosedPage and admin Settings status banner
  * both consume this.
+ *
+ * Returns { kind: "loading" } until both the settings + business-hours
+ * providers have completed their initial fetch. Without this, on a
+ * fresh refresh both providers are seeded with hardcoded defaults
+ * (open 09:00–22:00 etc.), the guard runs against those, and venues
+ * whose real schedule disagrees see a brief redirect to /closed
+ * before the real data arrives and bounces back. The "loading" state
+ * makes ClosedGuard hold its render so no flash happens.
  */
 export function useOpenStatus(): OpenStatus {
-  const { settings } = useRestaurantSettings();
-  const { hours } = useBusinessHours();
+  const { settings, isLoading: settingsLoading } = useRestaurantSettings();
+  const { hours, isLoading: hoursLoading } = useBusinessHours();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -98,15 +106,14 @@ export function useOpenStatus(): OpenStatus {
     return () => window.clearInterval(id);
   }, []);
 
-  return useMemo(
-    () =>
-      computeOpenStatus({
-        openForOrders: settings.openForOrders,
-        timezone: settings.timezone,
-        lastCallMinutes: settings.lastCallMinutesBeforeClose,
-        hours,
-        now,
-      }),
-    [settings, hours, now]
-  );
+  return useMemo<OpenStatus>(() => {
+    if (settingsLoading || hoursLoading) return { kind: "loading" };
+    return computeOpenStatus({
+      openForOrders: settings.openForOrders,
+      timezone: settings.timezone,
+      lastCallMinutes: settings.lastCallMinutesBeforeClose,
+      hours,
+      now,
+    });
+  }, [settings, settingsLoading, hours, hoursLoading, now]);
 }

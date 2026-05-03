@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Bell,
   Image as ImageIcon,
+  Pencil,
   QrCode,
   Shield,
   Tag,
@@ -64,6 +65,11 @@ const ENTITY_META: Record<
     icon: Shield,
     tone: "bg-destructive/15 text-destructive",
   },
+  order_modification: {
+    label: "Order edits",
+    icon: Pencil,
+    tone: "bg-info/15 text-info",
+  },
 };
 
 const ENTITY_TYPES: AuditEntityType[] = [
@@ -74,6 +80,7 @@ const ENTITY_TYPES: AuditEntityType[] = [
   "waiter_call",
   "order_review",
   "device_block",
+  "order_modification",
 ];
 
 type Filter = "all" | AuditEntityType;
@@ -102,6 +109,7 @@ export default function ActivityPage() {
       waiter_call: 0,
       order_review: 0,
       device_block: 0,
+      order_modification: 0,
     };
     // When a type filter is active the entries list is already
     // narrowed, so the counts row only shows the active bucket

@@ -28,6 +28,40 @@ export function pushPermission(): NotificationPermission {
   return Notification.permission;
 }
 
+/**
+ * Per-order "this device subscribed" flag. The push_subscriptions row
+ * + the browser's pushManager subscription both persist across browser
+ * restarts, but the NotifyPill's local component state doesn't — so
+ * without this flag, a refresh would render the "Notify me" button
+ * again as if the customer had never subscribed. Writing the flag on
+ * every successful subscribe and reading it on mount keeps the UI in
+ * sync with the actual subscription.
+ *
+ * Per-order key (servio.pushed.<orderId>) so a customer who subscribes
+ * to ORD-A then places ORD-B sees the right state for each.
+ */
+const PUSH_FLAG_PREFIX = "servio.pushed.";
+
+export function markOrderPushed(orderId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PUSH_FLAG_PREFIX + orderId, "1");
+  } catch {
+    // Quota / private mode — drop silently. Customer will see the
+    // "Notify me" button on next mount and re-clicking is a safe no-op
+    // because subscribeToOrderPush upserts on conflict.
+  }
+}
+
+export function isOrderPushed(orderId: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(PUSH_FLAG_PREFIX + orderId) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export interface SubscribeResult {
   ok: boolean;
   reason?:
@@ -109,16 +143,21 @@ export async function subscribeToOrderPush(
     };
   }
 
-  const { error } = await supabase.from("push_subscriptions").insert({
-    order_id: orderId,
-    endpoint,
-    p256dh,
-    auth,
-  });
+  // upsert with ignoreDuplicates so a second click on "Notify me"
+  // (after closing + reopening the browser, or otherwise re-running
+  // through this path with the same endpoint) generates
+  // INSERT ... ON CONFLICT DO NOTHING server-side — no 409 lands in
+  // the network log, and no UPDATE policy is needed since the
+  // duplicate row never causes a write attempt. The "already
+  // subscribed" state is just a silent no-op success.
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .upsert(
+      { order_id: orderId, endpoint, p256dh, auth },
+      { onConflict: "order_id,endpoint", ignoreDuplicates: true }
+    );
 
-  // Ignore unique-violation: the subscription already exists for this
-  // device + order pairing, which is a successful "already subscribed" state.
-  if (error && error.code !== "23505") {
+  if (error) {
     return {
       ok: false,
       reason: "save-failed",
@@ -126,5 +165,6 @@ export async function subscribeToOrderPush(
     };
   }
 
+  markOrderPushed(orderId);
   return { ok: true };
 }

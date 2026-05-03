@@ -1,84 +1,246 @@
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Check, ChevronRight, X } from "lucide-react";
+import { toast } from "sonner";
+import {
+  ChevronRight,
+  Minus,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import {
-  pushPermission,
-  pushSupported,
-  subscribeToOrderPush,
-} from "@/lib/push";
 import { useUndoWindow } from "@/hooks/useUndoWindow";
+import { getDeviceId } from "@/lib/deviceId";
+import {
+  modifyMyOrderItem,
+  MODIFY_ORDER_ERROR_COPY,
+} from "@/services/orders";
+import { formatPrice } from "@/utils";
+import { NotifyPill } from "@/components/common/NotifyPill";
+import type { CartItem } from "@/types";
 
 interface OrderSuccessModalProps {
   open: boolean;
   orderId: string | null;
-  /** ms timestamp the order was placed; anchors the 30s undo window. */
+  /** ms timestamp the order was placed; anchors both the cancel + edit windows. */
   placedAt: number | null;
+  /** Snapshot of items at submit time. Modal mirrors this internally so edits can mutate. */
+  items: CartItem[];
   onView: () => void;
-  /** Called after the customer successfully cancels inside the window. */
+  /** Called after the customer successfully cancels (or edits down to 0 lines). */
   onCancelled: () => void;
 }
 
-type NotifyState =
-  | "idle" // hasn't asked
-  | "subscribing" // permission/save in flight
-  | "subscribed" // success
-  | "denied" // user blocked
-  | "unavailable"; // browser doesn't support OR vapid key missing
+type Mode = "placed" | "editing";
+
+/** Edit window mirrors modify_my_order_item server-side: 60 seconds. */
+const EDIT_WINDOW_MS = 60_000;
+/** Server-side cap — must match modify_my_order_item. */
+const MAX_EDITS = 3;
 
 export function OrderSuccessModal({
   open,
   orderId,
   placedAt,
+  items: initialItems,
   onView,
   onCancelled,
 }: OrderSuccessModalProps) {
-  const [notify, setNotify] = useState<NotifyState>("idle");
   const undo = useUndoWindow(open ? orderId : null, open ? placedAt : null);
 
-  // Initialise the notify state when the modal opens
+  // Modal pivot state — placed = the success view, editing = inline
+  // line editor with - buttons.
+  const [mode, setMode] = useState<Mode>("placed");
+
+  // Local mirror of order lines so a successful edit visibly mutates
+  // the list without a refetch. Reset on each fresh open.
+  const [items, setItems] = useState<CartItem[]>(initialItems);
+  const [editsUsed, setEditsUsed] = useState(0);
+  const [pendingLineId, setPendingLineId] = useState<string | null>(null);
+
+  // Tick the edit-window countdown locally — separate from useUndoWindow
+  // because the windows are different (60s edit vs 30s cancel) but anchored
+  // on the same placedAt.
+  const [editSecondsLeft, setEditSecondsLeft] = useState<number>(() =>
+    placedAt ? secondsLeftFor(placedAt, EDIT_WINDOW_MS) : 0
+  );
+
+  // Reset transient state when the modal opens for a new order.
   useEffect(() => {
     if (!open) return;
-    if (!pushSupported()) {
-      setNotify("unavailable");
-      return;
-    }
-    if (!import.meta.env.VITE_VAPID_PUBLIC_KEY) {
-      setNotify("unavailable");
-      return;
-    }
-    const perm = pushPermission();
-    if (perm === "denied") setNotify("denied");
-    else setNotify("idle");
-  }, [open]);
+    setMode("placed");
+    setItems(initialItems);
+    setEditsUsed(0);
+    setPendingLineId(null);
+  }, [open, orderId, initialItems]);
 
-  const handleSubscribe = async () => {
+  // Edit-window ticker. Same 250ms cadence as useUndoWindow for parity.
+  useEffect(() => {
+    if (!open || placedAt === null) return;
+    const tick = () => {
+      const next = secondsLeftFor(placedAt, EDIT_WINDOW_MS);
+      setEditSecondsLeft(next);
+      // Auto-exit edit mode the moment the window closes — leaving
+      // the inline editor up after the buttons are dead is misleading.
+      if (next <= 0) {
+        setMode((m) => (m === "editing" ? "placed" : m));
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [open, placedAt]);
+
+  const handleDecrement = async (line: CartItem) => {
     if (!orderId) return;
-    setNotify("subscribing");
-    const result = await subscribeToOrderPush(orderId);
-    if (result.ok) {
-      setNotify("subscribed");
-    } else if (result.reason === "permission-denied") {
-      setNotify("denied");
-    } else if (result.reason === "unsupported" || result.reason === "missing-vapid") {
-      setNotify("unavailable");
-    } else {
-      setNotify("idle");
-      console.error("[push] subscribe failed:", result.message);
+    const newQty = line.quantity - 1;
+    setPendingLineId(line.lineId);
+    const result = await modifyMyOrderItem(
+      orderId,
+      getDeviceId(),
+      line.lineId,
+      newQty
+    );
+    setPendingLineId(null);
+
+    if (!result.ok) {
+      toast.error(MODIFY_ORDER_ERROR_COPY[result.error]);
+      return;
+    }
+
+    // Optimistically reflect the server's truth in our local mirror.
+    setItems((prev) =>
+      newQty === 0
+        ? prev.filter((it) => it.lineId !== line.lineId)
+        : prev.map((it) =>
+            it.lineId === line.lineId ? { ...it, quantity: newQty } : it
+          )
+    );
+    setEditsUsed(MAX_EDITS - result.modificationsLeft);
+
+    // The server auto-cancels when items hit 0 — pivot the modal to
+    // reflect that.
+    if (newQty === 0 && items.length === 1) {
+      // Routed through the same exit path the cancel pill uses so
+      // Checkout clears the cart + bounces to /menu.
+      toast.success("Order cancelled — last item removed");
+      onCancelled();
     }
   };
 
   const cancelled = undo.state === "cancelled";
   const canCancel = undo.state === "idle" && undo.secondsLeft > 0;
   const cancelling = undo.state === "cancelling";
+  const canEdit =
+    mode === "placed" &&
+    !cancelled &&
+    editSecondsLeft > 0 &&
+    editsUsed < MAX_EDITS &&
+    items.length > 0;
+  const editsLeft = MAX_EDITS - editsUsed;
 
+  // ── Editing view ──────────────────────────────────────────────────
+  if (mode === "editing" && !cancelled) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) onView();
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="max-w-sm rounded-3xl p-6"
+        >
+          <div className="space-y-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-lg font-bold">Editing order</h2>
+              <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
+                {editSecondsLeft}s · {editsLeft} edit
+                {editsLeft === 1 ? "" : "s"} left
+              </span>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Tap − to lower a quantity. Removing the last item cancels the
+              order.
+            </p>
+
+            <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
+              {items.map((line) => (
+                <li
+                  key={line.lineId}
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5"
+                >
+                  <img
+                    src={line.image}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-12 w-12 shrink-0 rounded-xl object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold leading-tight">
+                      {line.name}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      ×{line.quantity} · {formatPrice(line.unitPrice)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDecrement(line)}
+                    disabled={pendingLineId === line.lineId || editsUsed >= MAX_EDITS}
+                    aria-label={
+                      line.quantity === 1
+                        ? `Remove ${line.name}`
+                        : `Decrease ${line.name}`
+                    }
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors active:scale-95 disabled:cursor-not-allowed disabled:opacity-50",
+                      line.quantity === 1
+                        ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15"
+                        : "border-border text-foreground/80 hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    {line.quantity === 1 ? (
+                      <Trash2
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5"
+                        strokeWidth={2.4}
+                      />
+                    ) : (
+                      <Minus
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5"
+                        strokeWidth={2.4}
+                      />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+              <button
+                type="button"
+                onClick={() => setMode("placed")}
+                className="rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-transform hover:scale-[1.02] active:scale-95"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // ── Placed / Cancelled view ───────────────────────────────────────
   return (
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
         if (isOpen) return;
-        // After a successful cancel, route through onCancelled instead of onView
-        // so the parent can clear the cart + navigate back to the menu.
         if (cancelled) onCancelled();
         else onView();
       }}
@@ -163,35 +325,58 @@ export function OrderSuccessModal({
             </button>
           )}
 
-          {!cancelled && canCancel && (
-            <button
-              type="button"
-              onClick={undo.cancel}
-              disabled={cancelling}
-              className={cn(
-                "mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95 animate-fade-up",
-                "text-foreground/70 hover:bg-muted hover:text-foreground",
-                "disabled:cursor-not-allowed disabled:opacity-50"
-              )}
+          {!cancelled && (canCancel || canEdit) && (
+            <div
+              className="mt-3 flex flex-wrap items-center justify-center gap-2 animate-fade-up"
               style={{ animationDelay: "1150ms" }}
             >
-              <X className="h-3.5 w-3.5" strokeWidth={2.4} />
-              {cancelling
-                ? "Cancelling…"
-                : `Cancel order · ${undo.secondsLeft}s`}
-            </button>
+              {canCancel && (
+                <button
+                  type="button"
+                  onClick={undo.cancel}
+                  disabled={cancelling}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95",
+                    "text-foreground/70 hover:bg-muted hover:text-foreground",
+                    "disabled:cursor-not-allowed disabled:opacity-50"
+                  )}
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  {cancelling
+                    ? "Cancelling…"
+                    : `Cancel · ${undo.secondsLeft}s`}
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setMode("editing")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95",
+                    "text-foreground/70 hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Pencil className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  Edit · {editSecondsLeft}s
+                </button>
+              )}
+            </div>
           )}
 
-          {!cancelled && !canCancel && (
-            <NotifyOption
-              state={notify}
-              onSubscribe={handleSubscribe}
+          {!cancelled && !canCancel && !canEdit && (
+            <NotifyPill
+              orderId={orderId}
+              className="mt-3 animate-fade-up"
             />
           )}
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function secondsLeftFor(placedAt: number, windowMs: number): number {
+  return Math.max(0, Math.ceil((windowMs - (Date.now() - placedAt)) / 1000));
 }
 
 function CancelledIcon() {
@@ -221,53 +406,3 @@ function CancelledIcon() {
   );
 }
 
-function NotifyOption({
-  state,
-  onSubscribe,
-}: {
-  state: NotifyState;
-  onSubscribe: () => void;
-}) {
-  if (state === "unavailable") return null;
-
-  if (state === "subscribed") {
-    return (
-      <p
-        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-success animate-fade-up"
-        style={{ animationDelay: "1150ms" }}
-      >
-        <Check className="h-3.5 w-3.5" strokeWidth={2.4} />
-        We&apos;ll notify you when it&apos;s ready
-      </p>
-    );
-  }
-
-  if (state === "denied") {
-    return (
-      <p
-        className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground animate-fade-up"
-        style={{ animationDelay: "1150ms" }}
-      >
-        <BellOff className="h-3.5 w-3.5" strokeWidth={2.2} />
-        Notifications blocked — enable in browser settings to opt in
-      </p>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onSubscribe}
-      disabled={state === "subscribing"}
-      className={cn(
-        "mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95 animate-fade-up",
-        "text-foreground/70 hover:bg-muted hover:text-foreground",
-        "disabled:cursor-not-allowed disabled:opacity-50"
-      )}
-      style={{ animationDelay: "1150ms" }}
-    >
-      <Bell className="h-3.5 w-3.5" strokeWidth={2.2} />
-      {state === "subscribing" ? "Setting up…" : "Notify me when ready"}
-    </button>
-  );
-}

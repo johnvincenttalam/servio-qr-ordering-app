@@ -120,12 +120,15 @@ export function useTableValidation(): UseTableValidationReturn {
       setTableId(tableParam);
       setIsValid(true);
       setIsChecking(false);
-      // Hard-gate: if the venue is currently closed, route to the
-      // ClosedPage instead of /menu. Customer can still bookmark and
-      // come back during open hours; the menu remains reachable once
-      // the schedule says open.
-      const target =
-        openStatusRef.current.kind === "open" ? "/menu" : "/closed";
+      // Hard-gate: if the venue is closed, route to the ClosedPage
+      // instead of /menu. "loading" treated as open optimistically —
+      // by the time the customer's QR scan finishes the providers are
+      // usually loaded, but if not, ClosedGuard around /menu picks
+      // up the slack once data arrives. Routing to /closed during
+      // loading would flash that page on every fresh scan whenever
+      // the hardcoded defaults disagree with real hours.
+      const kind = openStatusRef.current.kind;
+      const target = kind === "open" || kind === "loading" ? "/menu" : "/closed";
       navigate(target, { replace: true });
     })();
 

@@ -21,6 +21,7 @@ import {
 import { AnimatedStatusIcon } from "@/components/order/AnimatedStatusIcon";
 import { OrderStatusSkeleton } from "@/components/order/OrderStatusSkeleton";
 import { WaiterCallSheet } from "@/components/common/WaiterCallSheet";
+import { NotifyPill } from "@/components/common/NotifyPill";
 import type { OrderStatus } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/utils";
@@ -255,6 +256,17 @@ export default function OrderStatusPage() {
           </div>
         </div>
       </section>
+
+      {/* Notify pill — second-chance opt-in for customers who tapped
+          Track Order before the modal's notify option appeared. Stretched
+          to the section width here (vs the modal's compact pill) so it
+          reads as a banner-CTA between the hero and the progress steps.
+          Hides automatically once the order moves past preparing. */}
+      <NotifyPill
+        orderId={order.id}
+        hidden={!isActive}
+        className="w-full justify-center py-2.5 text-sm"
+      />
 
       <section className="rounded-3xl border border-border bg-card p-5 animate-fade-up">
         <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

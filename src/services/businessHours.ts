@@ -114,6 +114,14 @@ interface OpenComputeInput {
 }
 
 export type OpenStatus =
+  /**
+   * Settings or business_hours haven't finished loading yet — UI should
+   * treat this as "don't redirect to /closed". Prevents a flash of the
+   * closed page on refresh when the hardcoded defaults disagree with
+   * the real schedule (e.g., venue's actual close is later than the
+   * default 22:00 and the customer refreshes after 22:00 local time).
+   */
+  | { kind: "loading" }
   | { kind: "open"; closesAt: Date }
   | { kind: "closed-schedule"; nextOpenAt: Date | null }
   | { kind: "closed-override" };
