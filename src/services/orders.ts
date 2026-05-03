@@ -23,6 +23,10 @@ export interface AdminOrderItem {
   quantity: number;
   image: string;
   selections: CartItemSelection[];
+  /** Set when admin comped the line. unit_price is also 0 in that case. */
+  compedAt: number | null;
+  /** Operator's reason captured at comp time. */
+  compReason: string | null;
 }
 
 export interface AdminOrder {
@@ -64,6 +68,8 @@ interface OrderRow {
     quantity: number;
     image: string;
     selections: CartItemSelection[] | null;
+    comped_at: string | null;
+    comp_reason: string | null;
   }[];
 }
 
@@ -89,6 +95,8 @@ function rowToOrder(row: OrderRow): AdminOrder {
       quantity: it.quantity,
       image: it.image,
       selections: it.selections ?? [],
+      compedAt: it.comped_at ? new Date(it.comped_at).getTime() : null,
+      compReason: it.comp_reason,
     })),
   };
 }
@@ -96,7 +104,7 @@ function rowToOrder(row: OrderRow): AdminOrder {
 const ORDERS_SELECT = `
   id, table_id, status, total, customer_name, notes, created_at, ready_at,
   requires_review, risk_score, device_id,
-  items:order_items(line_id, item_id, name, base_price, unit_price, quantity, image, selections)
+  items:order_items(line_id, item_id, name, base_price, unit_price, quantity, image, selections, comped_at, comp_reason)
 `;
 
 const QUERY_LIMIT = 200;
@@ -151,6 +159,8 @@ interface PublicOrderItemRow {
   quantity: number;
   image: string;
   selections: CartItemSelection[] | null;
+  comped_at: string | null;
+  comp_reason: string | null;
 }
 
 function rowToPublicOrder(
@@ -169,6 +179,8 @@ function rowToPublicOrder(
       quantity: it.quantity,
       image: it.image,
       selections: it.selections ?? [],
+      compedAt: it.comped_at ? new Date(it.comped_at).getTime() : undefined,
+      compReason: it.comp_reason ?? undefined,
     })),
     total: Number(order.total),
     status: order.status,
@@ -195,7 +207,7 @@ export async function fetchOrderStatus(
     supabase
       .from("order_items")
       .select(
-        "line_id, item_id, name, base_price, unit_price, quantity, image, selections"
+        "line_id, item_id, name, base_price, unit_price, quantity, image, selections, comped_at, comp_reason"
       )
       .eq("order_id", orderId),
   ]);
@@ -399,6 +411,117 @@ export async function cancelMyOrder(
 export function setOrderStatus(id: string, status: AdminOrderStatus) {
   return supabase.from("orders").update({ status }).eq("id", id);
 }
+
+/**
+ * Phase C.1 — admin per-item operations (comp / remove). Both wrap
+ * security-definer RPCs that check is_admin(), gate on order status,
+ * append audit_log + order_modifications entries, and recompute the
+ * order total.
+ */
+export type AdminItemModError =
+  | "ORDER_NOT_FOUND"
+  | "LINE_NOT_FOUND"
+  | "STATUS_LOCKED"
+  | "REASON_REQUIRED"
+  | "UNKNOWN";
+
+export type AdminItemModResult =
+  | { ok: true; newTotal: number; orderCancelled?: boolean }
+  | { ok: false; error: AdminItemModError };
+
+const KNOWN_MOD_ERRORS: ReadonlySet<AdminItemModError> = new Set([
+  "ORDER_NOT_FOUND",
+  "LINE_NOT_FOUND",
+  "STATUS_LOCKED",
+  "REASON_REQUIRED",
+  "UNKNOWN",
+]);
+
+function parseModResult(data: unknown): AdminItemModResult {
+  const payload = data as
+    | { ok: boolean; error?: string; new_total?: number; order_cancelled?: boolean }
+    | null;
+  if (!payload) return { ok: false, error: "UNKNOWN" };
+  if (payload.ok !== true) {
+    const code =
+      payload.error && KNOWN_MOD_ERRORS.has(payload.error as AdminItemModError)
+        ? (payload.error as AdminItemModError)
+        : "UNKNOWN";
+    return { ok: false, error: code };
+  }
+  return {
+    ok: true,
+    newTotal: Number(payload.new_total ?? 0),
+    orderCancelled: payload.order_cancelled === true,
+  };
+}
+
+export async function compOrderItem(
+  orderId: string,
+  lineId: string,
+  reason: string
+): Promise<AdminItemModResult> {
+  const { data, error } = await supabase.rpc("admin_comp_order_item", {
+    p_order_id: orderId,
+    p_line_id: lineId,
+    p_reason: reason,
+  });
+  if (error) {
+    console.error("[services/orders] admin_comp_order_item failed:", error);
+    return { ok: false, error: "UNKNOWN" };
+  }
+  return parseModResult(data);
+}
+
+export async function removeOrderItem(
+  orderId: string,
+  lineId: string,
+  reason: string
+): Promise<AdminItemModResult> {
+  const { data, error } = await supabase.rpc("admin_remove_order_item", {
+    p_order_id: orderId,
+    p_line_id: lineId,
+    p_reason: reason,
+  });
+  if (error) {
+    console.error("[services/orders] admin_remove_order_item failed:", error);
+    return { ok: false, error: "UNKNOWN" };
+  }
+  return parseModResult(data);
+}
+
+/**
+ * Reverse a comp on a single line. Restores unit_price from base_price
+ * (plus the per-selection priceDelta sum captured on the line) and
+ * clears comped_at + comp_reason. Server-side audited the same way
+ * as comp/remove. No-op success when the line wasn't comped to begin
+ * with.
+ */
+export async function uncompOrderItem(
+  orderId: string,
+  lineId: string,
+  reason: string
+): Promise<AdminItemModResult> {
+  const { data, error } = await supabase.rpc("admin_uncomp_order_item", {
+    p_order_id: orderId,
+    p_line_id: lineId,
+    p_reason: reason,
+  });
+  if (error) {
+    console.error("[services/orders] admin_uncomp_order_item failed:", error);
+    return { ok: false, error: "UNKNOWN" };
+  }
+  return parseModResult(data);
+}
+
+export const ADMIN_ITEM_MOD_ERROR_COPY: Record<AdminItemModError, string> = {
+  ORDER_NOT_FOUND: "Order not found.",
+  LINE_NOT_FOUND: "That item isn't on the order anymore.",
+  STATUS_LOCKED:
+    "Order is already served or cancelled — can't modify items.",
+  REASON_REQUIRED: "A reason is required.",
+  UNKNOWN: "Couldn't apply the change. Please try again.",
+};
 
 /**
  * Release a held order so the kitchen sees it. Bumps submitted_at to now()

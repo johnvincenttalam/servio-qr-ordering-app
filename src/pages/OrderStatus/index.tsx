@@ -344,6 +344,7 @@ export default function OrderStatusPage() {
             const selectionSummary = item.selections
               .map((s) => s.choiceName)
               .join(" · ");
+            const isComped = item.compedAt !== undefined;
             return (
               <li key={item.lineId} className="flex items-start gap-3">
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted">
@@ -351,7 +352,10 @@ export default function OrderStatusPage() {
                     <img
                       src={item.image}
                       alt=""
-                      className="h-full w-full object-cover"
+                      className={cn(
+                        "h-full w-full object-cover",
+                        isComped && "grayscale opacity-70"
+                      )}
                       loading="lazy"
                     />
                   )}
@@ -362,7 +366,12 @@ export default function OrderStatusPage() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold leading-tight">
+                  <p
+                    className={cn(
+                      "truncate text-sm font-semibold leading-tight",
+                      isComped && "text-muted-foreground line-through"
+                    )}
+                  >
                     {item.name}
                     {item.quantity > 1 && (
                       <span className="ml-1 text-muted-foreground">
@@ -371,14 +380,25 @@ export default function OrderStatusPage() {
                     )}
                   </p>
                   {selectionSummary && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    <p
+                      className={cn(
+                        "mt-0.5 truncate text-xs text-muted-foreground",
+                        isComped && "line-through"
+                      )}
+                    >
                       {selectionSummary}
                     </p>
                   )}
                 </div>
-                <p className="shrink-0 text-sm font-semibold tabular-nums">
-                  {formatPrice(item.unitPrice * item.quantity)}
-                </p>
+                {isComped ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-success">
+                    Comped
+                  </span>
+                ) : (
+                  <p className="shrink-0 text-sm font-semibold tabular-nums">
+                    {formatPrice(item.unitPrice * item.quantity)}
+                  </p>
+                )}
               </li>
             );
           })}

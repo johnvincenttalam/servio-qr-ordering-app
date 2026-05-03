@@ -41,6 +41,14 @@ export interface CartItem {
   quantity: number;
   image: string;
   selections: CartItemSelection[];
+  /**
+   * Set when an admin comped this line. unit_price is also 0 in
+   * that case so the order total reflects the discount.
+   * Customer-facing surfaces show a "Comped" badge instead of the
+   * raw ₱0.00 so the discount reads as intentional rather than free.
+   */
+  compedAt?: number;
+  compReason?: string;
 }
 
 export type OrderStatus = "pending" | "preparing" | "ready";

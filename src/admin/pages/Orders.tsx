@@ -52,6 +52,9 @@ export default function OrdersPage() {
     approveHeld,
     rejectHeld,
     blockDeviceById,
+    compItem,
+    uncompItem,
+    removeItem,
   } = useAdminOrders();
   const [filter, setFilter] = useState<StatusFilter>("active");
   const [dateRange, setDateRange] = useState<DateRange>("today");
@@ -246,6 +249,9 @@ export default function OrdersPage() {
         onSetStatus={setStatus}
         onApproveHeld={approveHeld}
         onBlockDevice={blockDeviceById}
+        onCompItem={compItem}
+        onUncompItem={uncompItem}
+        onRemoveItem={removeItem}
       />
     </div>
   );
