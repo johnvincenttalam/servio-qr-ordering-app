@@ -140,8 +140,71 @@ export default function OrderStatusPage() {
   // render a dedicated "thanks for ordering" surface instead of the
   // tracking card, which stops making sense once it's complete.
   const isServed = (order.status as string) === "served";
+  // Same trick for cancelled — admin removed every item, admin clicked
+  // Cancel, or the customer hit Cancel inside the 30s undo window.
+  // Active-tracking UI doesn't apply; show a dedicated terminal surface.
+  const isCancelled = (order.status as string) === "cancelled";
   const currentIndex = STEPS.indexOf(order.status);
   const isReady = order.status === "ready";
+
+  if (isCancelled) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Order Status</h2>
+
+        <section className="rounded-3xl bg-card p-7 text-center text-foreground animate-fade-up">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-muted text-muted-foreground animate-cancel-wobble">
+            <svg
+              className="h-10 w-10"
+              viewBox="0 0 52 52"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle
+                cx="26"
+                cy="26"
+                r="24"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="animate-check-circle"
+              />
+              <path
+                d="M18 18 L34 34"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                className="animate-cancel-stroke-1"
+              />
+              <path
+                d="M34 18 L18 34"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                className="animate-cancel-stroke-2"
+              />
+            </svg>
+          </div>
+          <span className="mt-4 inline-block rounded-full bg-card px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Order #{order.id}
+          </span>
+          <h3 className="mt-2 text-3xl font-bold leading-tight">
+            Order cancelled
+          </h3>
+          <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">
+            This order was cancelled. Nothing was charged.
+          </p>
+        </section>
+
+        <button
+          onClick={() => navigate("/menu")}
+          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-foreground py-4 text-base font-semibold text-background transition-transform hover:scale-[1.01] active:scale-[0.98]"
+        >
+          <Sparkles aria-hidden="true" className="h-4 w-4" strokeWidth={2.4} />
+          Browse the menu
+        </button>
+      </div>
+    );
+  }
 
   if (isServed) {
     return (

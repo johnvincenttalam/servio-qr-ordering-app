@@ -658,7 +658,11 @@ function ReasonPicker({
       : REMOVE_REASONS;
   const action =
     mode === "comping" ? "Comp" : mode === "uncomping" ? "Uncomp" : "Remove";
-  const [picked, setPicked] = useState<string | null>(null);
+  // Pre-select the first chip so the action button is enabled the
+  // moment the picker mounts — without this the operator sees a dim
+  // button and a row of chips with no obvious cue telling them to
+  // tap a chip first. Picking any other chip is a single tap override.
+  const [picked, setPicked] = useState<string | null>(reasons[0] ?? null);
   const [otherText, setOtherText] = useState("");
 
   const isOther = picked === "Other";

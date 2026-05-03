@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchOrderStatus } from "@/services/orders";
 import { supabase } from "@/lib/supabase";
-import type { Order, OrderStatus } from "@/types";
+import type { Order } from "@/types";
 
 interface UseOrderStatusReturn {
   order: Order | null;
@@ -9,6 +9,18 @@ interface UseOrderStatusReturn {
   refetch: () => void;
 }
 
+/**
+ * Customer-side live order view. Subscribes to:
+ *
+ *   • orders          — status flips, total changes, modification_count
+ *   • order_items     — admin comp / uncomp / remove, customer-side qty edits
+ *
+ * Both fire a full refetch (cheap — single order + its items) rather
+ * than splice-merging payloads. This keeps the UI consistent with the
+ * server's truth even when several mutations land in quick succession
+ * (e.g., comp followed by remove on different lines), without the
+ * partial-update bugs that plagued the previous status-only listener.
+ */
 export function useOrderStatus(orderId: string | null): UseOrderStatusReturn {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,8 +59,20 @@ export function useOrderStatus(orderId: string | null): UseOrderStatusReturn {
       }
     })();
 
-    // Subscribe to status changes via Supabase realtime — staff updates the
-    // status from the kitchen and the customer's UI reacts instantly.
+    // Background refetch — fires on every realtime payload. Doesn't
+    // toggle isLoading so the UI doesn't flicker on every kitchen
+    // status flip / item edit.
+    const refetchSilent = () => {
+      if (cancelled) return;
+      fetchOrderStatus(orderId)
+        .then((result) => {
+          if (!cancelled && result) setOrder(result);
+        })
+        .catch(() => {
+          // Network blip — keep previous state. Next event re-fetches.
+        });
+    };
+
     const channel = supabase
       .channel(`order:${orderId}`)
       .on(
@@ -59,15 +83,19 @@ export function useOrderStatus(orderId: string | null): UseOrderStatusReturn {
           table: "orders",
           filter: `id=eq.${orderId}`,
         },
-        (payload) => {
-          if (cancelled) return;
-          const next = payload.new as { status?: OrderStatus };
-          if (next.status) {
-            setOrder((prev) =>
-              prev ? { ...prev, status: next.status as OrderStatus } : prev
-            );
-          }
-        }
+        refetchSilent
+      )
+      .on(
+        "postgres_changes",
+        {
+          // Catches admin remove (DELETE), admin comp / uncomp (UPDATE),
+          // customer qty-decrease (UPDATE), and any future inserts.
+          event: "*",
+          schema: "public",
+          table: "order_items",
+          filter: `order_id=eq.${orderId}`,
+        },
+        refetchSilent
       )
       .subscribe();
 
